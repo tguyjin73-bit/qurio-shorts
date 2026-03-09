@@ -22,65 +22,12 @@ import streamlit as st
 
 st.set_page_config(page_title="Shorts 자동 생성기", page_icon="🎬", layout="wide")
 
-# DOM removeChild 에러 숨김 (Streamlit 내부 렌더링 버그) — JS + CSS 주입
+# Streamlit 내부 stException 박스만 CSS로 숨김 (JS 제거 — 콘텐츠 블록 오숨김 버그 방지)
 st.markdown("""
 <style>
-/* Streamlit 에러 박스 숨기기 */
-[data-testid="stException"],
-.stException,
-div[class*="Exception"],
-div[class*="exception"] {
-  display: none !important;
-}
+[data-testid="stException"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
-
-import streamlit.components.v1 as _components
-_components.html("""
-<script>
-(function() {
-  var p = window.parent;
-  if (p.__errHider) return;
-  p.__errHider = true;
-  function hideErrors() {
-    try {
-      var d = p.document;
-      // testid 방식
-      d.querySelectorAll('[data-testid="stException"]').forEach(function(e){
-        e.style.setProperty('display','none','important');
-      });
-      // class 방식
-      d.querySelectorAll('.stException, [class*="exception"], [class*="Exception"]').forEach(function(e){
-        e.style.setProperty('display','none','important');
-      });
-      // 텍스트 내용으로 찾기 (removeChild 또는 NotFoundError 포함)
-      d.querySelectorAll('div, section, aside').forEach(function(el){
-        var t = el.innerText || '';
-        if ((t.includes('removeChild') || t.includes('NotFoundError')) && t.length < 500) {
-          // 실제 에러 컨테이너까지 올라가기
-          var node = el;
-          for (var i = 0; i < 8; i++) {
-            if (!node.parentElement) break;
-            node = node.parentElement;
-            var tid = node.getAttribute && node.getAttribute('data-testid');
-            if (tid && (tid === 'stVerticalBlock' || tid === 'stAppViewContainer')) {
-              break;
-            }
-          }
-          node.style.setProperty('display','none','important');
-        }
-      });
-    } catch(e){}
-  }
-  p.setInterval(hideErrors, 100);
-  // MutationObserver로 새 에러 즉시 감지
-  try {
-    var obs = new p.MutationObserver(hideErrors);
-    obs.observe(p.document.body, {childList:true, subtree:true});
-  } catch(e){}
-})();
-</script>
-""", height=0)
 
 CONFIG_PATH = "config.json"
 LOG_PATH = "logs/generation_log.json"
@@ -97,7 +44,7 @@ def load_config() -> dict:
         cfg = {
             "gemini": {"api_key": "", "model": "gemini-2.5-flash",
                        "imagen_model": "imagen-4.0-fast-generate-001"},
-            "luma": {"api_key": "", "prompt_suffix": "Smooth cinematic camera movement"},
+            "luma": {"api_key": "", "imgbb_api_key": "", "prompt_suffix": "Smooth cinematic camera movement"},
             "openai": {"api_key": "", "tts_model": "tts-1", "tts_voice": "echo", "tts_speed": 1.0},
             "telegram": {"bot_token": "", "chat_id": ""},
             "image": {"output_dir": "output/images",
@@ -670,6 +617,11 @@ if page == "🎬 영상 만들기":
                 st.session_state.tts_result = tts_result
             except Exception as e:
                 st.error(f"❌ TTS 생성 실패: {e}")
+                _col1, _col2 = st.columns(2)
+                with _col1:
+                    st.button("← 이미지로", key="tts_err_back", on_click=_back_to_step3)
+                with _col2:
+                    st.button("🔄 다시 시도", key="tts_err_redo", on_click=_redo_video)
                 st.stop()
 
             # 영상 합성
@@ -691,6 +643,11 @@ if page == "🎬 영상 만들기":
                 st.session_state.video_path = video_path
             except Exception as e:
                 st.error(f"❌ 영상 합성 실패: {e}")
+                _col1, _col2 = st.columns(2)
+                with _col1:
+                    st.button("← 이미지로", key="vid_err_back", on_click=_back_to_step3)
+                with _col2:
+                    st.button("🔄 다시 시도", key="vid_err_redo", on_click=_redo_video)
                 st.stop()
 
         st.success("✅ 영상 합성 완료!")
