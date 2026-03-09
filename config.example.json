@@ -1,0 +1,14 @@
+{
+    "title_template": "Daily Short - {date}",
+    "description": "This is an automated YouTube Short generated on {date}.",
+    "tags": [
+        "shorts",
+        "daily",
+        "automation"
+    ],
+    "categoryId": "22",
+    "privacyStatus": "public",
+    "video_length_seconds": 15,
+    "text_source": "quotes.txt",
+    "output_filename": "short.mp4"
+}

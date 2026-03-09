@@ -1,0 +1,28 @@
+# API 키 / 인증 파일 (절대 GitHub에 올리면 안 됨)
+config.json
+client_secret.json
+token.pickle
+
+# 생성 결과물
+output/
+logs/
+*.mp4
+*.mp3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Claude Code 내부 설정 (올리지 말 것)
+.claude/
+
+# 잘못 생성된 파일
+=*
+
+# OS
+.DS_Store
+Thumbs.db

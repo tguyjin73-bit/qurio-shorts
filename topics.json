@@ -1,0 +1,755 @@
+{
+  "version": "1.0",
+  "used_topic_ids": [],
+  "categories": [
+    {
+      "id": "mechanical",
+      "name": "기구개발",
+      "emoji": "⚙️",
+      "tts_voice": "alloy",
+      "color_scheme": {
+        "bg_start": [
+          15,
+          32,
+          39
+        ],
+        "bg_end": [
+          32,
+          58,
+          67
+        ]
+      },
+      "topics": [
+        {
+          "id": "mechanical_001",
+          "title": "DFM이란? 제조 용이성 설계를 모르면 금형 비용이 2배",
+          "keywords": [
+            "CAD",
+            "DFM",
+            "기구설계",
+            "제조",
+            "금형"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "warning"
+        },
+        {
+          "id": "mechanical_002",
+          "title": "공차 설계 실수로 제품이 망한 스타트업 사례",
+          "keywords": [
+            "공차",
+            "GD&T",
+            "기구설계",
+            "스타트업"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "story"
+        },
+        {
+          "id": "mechanical_003",
+          "title": "스타트업이 흔히 저지르는 기구 설계 3가지 실수",
+          "keywords": [
+            "스타트업",
+            "기구설계",
+            "실수",
+            "하드웨어"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "listicle"
+        },
+        {
+          "id": "mechanical_004",
+          "title": "SLA vs FDM vs SLS, 어떤 3D 프린팅을 선택해야 할까?",
+          "keywords": [
+            "3D프린팅",
+            "SLA",
+            "FDM",
+            "SLS",
+            "목업"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "mechanical_005",
+          "title": "플라스틱 사출 성형의 기본 원리, 개발자도 알아야 하는 이유",
+          "keywords": [
+            "사출성형",
+            "플라스틱",
+            "기구설계",
+            "제조"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "persuasion"
+        },
+        {
+          "id": "mechanical_006",
+          "title": "하드웨어 스타트업이 기구 설계 외주 줄 때 주의할 점",
+          "keywords": [
+            "기구설계",
+            "외주",
+            "스타트업",
+            "하드웨어"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "listicle"
+        }
+      ]
+    },
+    {
+      "id": "firmware",
+      "name": "펌웨어",
+      "emoji": "💾",
+      "tts_voice": "alloy",
+      "color_scheme": {
+        "bg_start": [
+          11,
+          11,
+          40
+        ],
+        "bg_end": [
+          30,
+          10,
+          80
+        ]
+      },
+      "topics": [
+        {
+          "id": "firmware_001",
+          "title": "RTOS vs 베어메탈, 언제 무엇을 선택해야 하나?",
+          "keywords": [
+            "RTOS",
+            "베어메탈",
+            "임베디드",
+            "펌웨어"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "firmware_002",
+          "title": "OTA 업데이트를 처음부터 설계해야 하는 이유",
+          "keywords": [
+            "OTA",
+            "펌웨어업데이트",
+            "IoT",
+            "임베디드"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "persuasion"
+        },
+        {
+          "id": "firmware_003",
+          "title": "임베디드 개발자가 반드시 알아야 할 디버깅 도구 3가지",
+          "keywords": [
+            "임베디드",
+            "디버깅",
+            "JTAG",
+            "펌웨어",
+            "개발도구"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "listicle"
+        },
+        {
+          "id": "firmware_004",
+          "title": "MCU 선택이 제품 개발 성공을 좌우하는 이유",
+          "keywords": [
+            "MCU",
+            "마이크로컨트롤러",
+            "임베디드",
+            "하드웨어"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "persuasion"
+        },
+        {
+          "id": "firmware_005",
+          "title": "Bluetooth vs Wi-Fi vs Zigbee, IoT 통신 프로토콜 선택법",
+          "keywords": [
+            "Bluetooth",
+            "WiFi",
+            "IoT",
+            "통신프로토콜",
+            "펌웨어"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "firmware_006",
+          "title": "펌웨어 버전 관리, 왜 일반 소프트웨어와 다른가?",
+          "keywords": [
+            "펌웨어",
+            "버전관리",
+            "임베디드",
+            "CI/CD"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "question"
+        }
+      ]
+    },
+    {
+      "id": "software",
+      "name": "소프트웨어",
+      "emoji": "💻",
+      "tts_voice": "nova",
+      "color_scheme": {
+        "bg_start": [
+          0,
+          4,
+          40
+        ],
+        "bg_end": [
+          20,
+          0,
+          80
+        ]
+      },
+      "topics": [
+        {
+          "id": "software_001",
+          "title": "MVP란 무엇이고, 언제 코드를 다시 짜야 하나?",
+          "keywords": [
+            "MVP",
+            "리팩토링",
+            "스타트업",
+            "소프트웨어"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "question"
+        },
+        {
+          "id": "software_002",
+          "title": "API 설계 첫 단계에서 절대 빠뜨리면 안 되는 것",
+          "keywords": [
+            "API",
+            "REST",
+            "설계",
+            "백엔드"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "warning"
+        },
+        {
+          "id": "software_003",
+          "title": "모놀리식 vs 마이크로서비스, 스타트업은 무엇을 선택해야 하나?",
+          "keywords": [
+            "모놀리식",
+            "마이크로서비스",
+            "아키텍처",
+            "스타트업"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "software_004",
+          "title": "기술 부채란? 스타트업이 빠지는 가장 위험한 함정",
+          "keywords": [
+            "기술부채",
+            "리팩토링",
+            "소프트웨어",
+            "스타트업"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "warning"
+        },
+        {
+          "id": "software_005",
+          "title": "CI/CD 파이프라인, 왜 초기부터 구축해야 하나?",
+          "keywords": [
+            "CI/CD",
+            "DevOps",
+            "자동화",
+            "소프트웨어개발"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "persuasion"
+        },
+        {
+          "id": "software_006",
+          "title": "코드 리뷰를 제대로 하는 방법 - 개발 생산성의 핵심",
+          "keywords": [
+            "코드리뷰",
+            "개발문화",
+            "소프트웨어",
+            "팀개발"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "tutorial"
+        }
+      ]
+    },
+    {
+      "id": "design",
+      "name": "UX/UI 디자인",
+      "emoji": "🎨",
+      "tts_voice": "nova",
+      "color_scheme": {
+        "bg_start": [
+          60,
+          10,
+          30
+        ],
+        "bg_end": [
+          20,
+          5,
+          60
+        ]
+      },
+      "topics": [
+        {
+          "id": "design_001",
+          "title": "UX 리서치 없이 제품을 만들면 생기는 일",
+          "keywords": [
+            "UX리서치",
+            "사용자조사",
+            "디자인",
+            "제품개발"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "story"
+        },
+        {
+          "id": "design_002",
+          "title": "디자인 시스템이 왜 스타트업에도 필요한가?",
+          "keywords": [
+            "디자인시스템",
+            "UI",
+            "스타트업",
+            "컴포넌트"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "persuasion"
+        },
+        {
+          "id": "design_003",
+          "title": "사용자 여정 지도(User Journey Map) 그리는 법",
+          "keywords": [
+            "사용자여정지도",
+            "UX",
+            "디자인",
+            "고객경험"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "tutorial"
+        },
+        {
+          "id": "design_004",
+          "title": "와이어프레임 vs 프로토타입, 언제 무엇을 써야 하나?",
+          "keywords": [
+            "와이어프레임",
+            "프로토타입",
+            "UX",
+            "피그마"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "design_005",
+          "title": "접근성 디자인, 왜 선택이 아닌 필수인가?",
+          "keywords": [
+            "접근성",
+            "a11y",
+            "UI디자인",
+            "포용적디자인"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "persuasion"
+        },
+        {
+          "id": "design_006",
+          "title": "개발자와 디자이너가 협업할 때 흔히 충돌하는 3가지",
+          "keywords": [
+            "디자이너",
+            "개발자",
+            "협업",
+            "핸드오프",
+            "피그마"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "listicle"
+        }
+      ]
+    },
+    {
+      "id": "mockup",
+      "name": "목업/프로토타입",
+      "emoji": "🖨️",
+      "tts_voice": "nova",
+      "color_scheme": {
+        "bg_start": [
+          10,
+          40,
+          10
+        ],
+        "bg_end": [
+          20,
+          70,
+          30
+        ]
+      },
+      "topics": [
+        {
+          "id": "mockup_001",
+          "title": "3D 프린팅 목업, PLA vs ABS vs PETG 소재 선택법",
+          "keywords": [
+            "3D프린팅",
+            "목업",
+            "PLA",
+            "ABS",
+            "PETG",
+            "소재"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "mockup_002",
+          "title": "하드웨어 프로토타입 단계별 가이드: PoC부터 EVT까지",
+          "keywords": [
+            "프로토타입",
+            "PoC",
+            "EVT",
+            "DVT",
+            "PVT",
+            "하드웨어"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "tutorial"
+        },
+        {
+          "id": "mockup_003",
+          "title": "저렴하게 목업 만드는 방법 - 스타트업 현실 가이드",
+          "keywords": [
+            "목업",
+            "3D프린팅",
+            "스타트업",
+            "프로토타입",
+            "비용"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "listicle"
+        },
+        {
+          "id": "mockup_004",
+          "title": "CNC 가공이란? 3D 프린팅과 무엇이 다른가?",
+          "keywords": [
+            "CNC",
+            "가공",
+            "3D프린팅",
+            "목업",
+            "제조"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "mockup_005",
+          "title": "소프트 목업 vs 하드 목업, 어떻게 다르고 언제 쓰나?",
+          "keywords": [
+            "소프트목업",
+            "하드목업",
+            "목업",
+            "제품개발"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "comparison"
+        }
+      ]
+    },
+    {
+      "id": "manufacturing",
+      "name": "금형/양산",
+      "emoji": "🏭",
+      "tts_voice": "alloy",
+      "color_scheme": {
+        "bg_start": [
+          50,
+          25,
+          5
+        ],
+        "bg_end": [
+          80,
+          45,
+          10
+        ]
+      },
+      "topics": [
+        {
+          "id": "manufacturing_001",
+          "title": "금형 발주 전 반드시 확인해야 할 체크리스트",
+          "keywords": [
+            "금형",
+            "사출",
+            "양산",
+            "제조",
+            "체크리스트"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "listicle"
+        },
+        {
+          "id": "manufacturing_002",
+          "title": "양산 전 파일럿 런(Pilot Run)이 왜 중요한가?",
+          "keywords": [
+            "양산",
+            "파일럿런",
+            "품질관리",
+            "제조"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "persuasion"
+        },
+        {
+          "id": "manufacturing_003",
+          "title": "중국 제조(OEM/ODM) vs 국내 제조, 스타트업은 어디서?",
+          "keywords": [
+            "OEM",
+            "ODM",
+            "중국제조",
+            "양산",
+            "스타트업"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "manufacturing_004",
+          "title": "금형 비용 절감하는 현실적인 방법 3가지",
+          "keywords": [
+            "금형",
+            "비용",
+            "사출",
+            "양산",
+            "스타트업"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "listicle"
+        },
+        {
+          "id": "manufacturing_005",
+          "title": "제품 인증(KC, CE, FCC) 없이 판매하면 어떻게 되나?",
+          "keywords": [
+            "KC인증",
+            "CE",
+            "FCC",
+            "제품인증",
+            "양산",
+            "규제"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "warning"
+        },
+        {
+          "id": "manufacturing_006",
+          "title": "BOM(자재명세서)이란? 양산 전에 반드시 완성해야 하는 이유",
+          "keywords": [
+            "BOM",
+            "자재명세서",
+            "양산",
+            "제조",
+            "부품"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "persuasion"
+        }
+      ]
+    },
+    {
+      "id": "pm",
+      "name": "PM/기획",
+      "emoji": "📋",
+      "tts_voice": "nova",
+      "color_scheme": {
+        "bg_start": [
+          5,
+          30,
+          60
+        ],
+        "bg_end": [
+          10,
+          60,
+          90
+        ]
+      },
+      "topics": [
+        {
+          "id": "pm_001",
+          "title": "PRD 작성법 - 초보 PM이 꼭 알아야 할 필수 항목",
+          "keywords": [
+            "PRD",
+            "PM",
+            "제품기획",
+            "요구사항",
+            "문서"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "tutorial"
+        },
+        {
+          "id": "pm_002",
+          "title": "로드맵과 백로그, 어떻게 다르고 어떻게 관리하나?",
+          "keywords": [
+            "로드맵",
+            "백로그",
+            "PM",
+            "기획",
+            "제품관리"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "pm_003",
+          "title": "스타트업 PM이 초기에 절대 하지 말아야 할 실수",
+          "keywords": [
+            "PM",
+            "스타트업",
+            "제품관리",
+            "실수",
+            "기획"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "warning"
+        },
+        {
+          "id": "pm_004",
+          "title": "OKR이란? 스타트업 목표 설정의 핵심 프레임워크",
+          "keywords": [
+            "OKR",
+            "KPI",
+            "목표설정",
+            "스타트업",
+            "PM"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "question"
+        },
+        {
+          "id": "pm_005",
+          "title": "사용자 스토리(User Story) 제대로 쓰는 방법",
+          "keywords": [
+            "사용자스토리",
+            "User Story",
+            "애자일",
+            "PM",
+            "기획"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "tutorial"
+        },
+        {
+          "id": "pm_006",
+          "title": "데이터 기반 제품 결정, 어떤 지표를 봐야 하나?",
+          "keywords": [
+            "데이터분석",
+            "지표",
+            "KPI",
+            "제품관리",
+            "PM"
+          ],
+          "difficulty": "intermediate",
+          "hook_type": "question"
+        }
+      ]
+    },
+    {
+      "id": "agile",
+      "name": "애자일/스크럼",
+      "emoji": "🔄",
+      "tts_voice": "nova",
+      "color_scheme": {
+        "bg_start": [
+          5,
+          50,
+          40
+        ],
+        "bg_end": [
+          10,
+          80,
+          60
+        ]
+      },
+      "topics": [
+        {
+          "id": "agile_001",
+          "title": "스프린트 회고(Retrospective)를 제대로 하는 방법",
+          "keywords": [
+            "스크럼",
+            "회고",
+            "애자일",
+            "스프린트",
+            "회의"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "tutorial"
+        },
+        {
+          "id": "agile_002",
+          "title": "데일리 스탠드업이 왜 시간 낭비가 되는가?",
+          "keywords": [
+            "데일리스탠드업",
+            "스크럼",
+            "애자일",
+            "회의"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "warning"
+        },
+        {
+          "id": "agile_003",
+          "title": "스크럼 vs 칸반, 우리 팀에 맞는 것은?",
+          "keywords": [
+            "스크럼",
+            "칸반",
+            "애자일",
+            "개발방법론"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "comparison"
+        },
+        {
+          "id": "agile_004",
+          "title": "스토리 포인트란? 개발 속도를 예측하는 방법",
+          "keywords": [
+            "스토리포인트",
+            "애자일",
+            "스크럼",
+            "스프린트",
+            "계획"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "question"
+        },
+        {
+          "id": "agile_005",
+          "title": "애자일을 도입하면 생기는 흔한 오해 3가지",
+          "keywords": [
+            "애자일",
+            "스크럼",
+            "개발방법론",
+            "오해"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "listicle"
+        },
+        {
+          "id": "agile_006",
+          "title": "스프린트 플래닝을 효율적으로 하는 실전 팁",
+          "keywords": [
+            "스프린트플래닝",
+            "스크럼",
+            "애자일",
+            "계획"
+          ],
+          "difficulty": "beginner",
+          "hook_type": "tutorial"
+        }
+      ]
+    }
+  ]
+}
