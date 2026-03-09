@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 from PIL import Image, ImageEnhance
@@ -145,21 +146,38 @@ def _text_to_image_prompt(text: str, api_key: str, style_prefix: str = STYLE_PRE
     return f"{style_prefix}{scene}, vertical 9:16 format, no text overlay"
 
 
-def _generate_image(client, imagen_model: str, prompt: str) -> Image.Image | None:
-    """Imagen API 호출 → PIL Image 반환. 실패 시 예외 그대로 전파."""
+def _generate_image(client, imagen_model: str, prompt: str,
+                    retries: int = 3, base_delay: float = 8.0) -> Image.Image | None:
+    """Imagen API 호출 → PIL Image 반환.
+    429 Rate Limit 발생 시 지수 백오프로 최대 retries회 재시도.
+    """
     from google.genai import types as genai_types
-    response = client.models.generate_images(
-        model=imagen_model,
-        prompt=prompt,
-        config=genai_types.GenerateImagesConfig(
-            number_of_images=1,
-            aspect_ratio="9:16",
-            safety_filter_level="block_low_and_above",
-        ),
-    )
-    if response.generated_images:
-        return Image.open(io.BytesIO(response.generated_images[0].image.image_bytes))
-    return None
+
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            response = client.models.generate_images(
+                model=imagen_model,
+                prompt=prompt,
+                config=genai_types.GenerateImagesConfig(
+                    number_of_images=1,
+                    aspect_ratio="9:16",
+                    safety_filter_level="block_low_and_above",
+                ),
+            )
+            if response.generated_images:
+                return Image.open(io.BytesIO(response.generated_images[0].image.image_bytes))
+            return None
+        except Exception as e:
+            last_exc = e
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                wait = base_delay * (2 ** attempt)   # 8 → 16 → 32초
+                print(f"[Imagen] Rate limit, {wait:.0f}초 대기 후 재시도 ({attempt+1}/{retries})")
+                time.sleep(wait)
+            else:
+                raise  # Rate limit 외 오류는 즉시 전파
+    raise last_exc
 
 
 def _gradient_fallback(idx: int = 0) -> Image.Image:
@@ -223,7 +241,9 @@ def generate_segment_images(
             filename = f"img_{seg_type}_{img_count:03d}.png"
             save_path = os.path.join(output_dir, filename)
 
-            # 이미지 생성
+            # 이미지 생성 (첫 번째 이미지 제외 2초 딜레이로 Rate Limit 방지)
+            if img_count > 0:
+                time.sleep(2)
             error_msg = None
             img = None
             if use_imagen:
