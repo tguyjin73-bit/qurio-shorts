@@ -102,14 +102,8 @@ def _split_text_to_chunks(text: str, max_chars: int = 80) -> list:
 
 
 def _num_images_for_segment(text: str) -> int:
-    """대본 길이에 따라 해당 세그먼트에서 생성할 이미지 수 결정."""
-    n = len(text)
-    if n < 60:
-        return 1
-    elif n < 130:
-        return 2
-    else:
-        return 3
+    """세그먼트당 이미지 수. Rate Limit 방지를 위해 1장으로 고정."""
+    return 1
 
 
 def _text_to_image_prompt(text: str, api_key: str, style_prefix: str = STYLE_PREFIX,
@@ -147,7 +141,7 @@ def _text_to_image_prompt(text: str, api_key: str, style_prefix: str = STYLE_PRE
 
 
 def _generate_image(client, imagen_model: str, prompt: str,
-                    retries: int = 3, base_delay: float = 8.0) -> Image.Image | None:
+                    retries: int = 2, base_delay: float = 5.0) -> Image.Image | None:
     """Imagen API 호출 → PIL Image 반환.
     429 Rate Limit 발생 시 지수 백오프로 최대 retries회 재시도.
     """
@@ -172,7 +166,7 @@ def _generate_image(client, imagen_model: str, prompt: str,
             last_exc = e
             err_str = str(e)
             if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                wait = base_delay * (2 ** attempt)   # 8 → 16 → 32초
+                wait = base_delay * (2 ** attempt)   # 5 → 10초
                 print(f"[Imagen] Rate limit, {wait:.0f}초 대기 후 재시도 ({attempt+1}/{retries})")
                 time.sleep(wait)
             else:
