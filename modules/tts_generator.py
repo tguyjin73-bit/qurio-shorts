@@ -84,8 +84,11 @@ def preprocess_tts_text(text: str) -> str:
 
 
 def _get_audio_duration(path: str) -> float:
-    """오디오 파일 길이 반환 (초)."""
-    from moviepy.editor import AudioFileClip
+    """오디오 파일 길이 반환 (초). moviepy 1.x / 2.x 모두 호환."""
+    try:
+        from moviepy.editor import AudioFileClip   # moviepy 1.x
+    except ImportError:
+        from moviepy import AudioFileClip          # moviepy 2.x
     clip = AudioFileClip(path)
     duration = clip.duration
     clip.close()
