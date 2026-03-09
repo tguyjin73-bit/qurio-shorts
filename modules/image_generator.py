@@ -11,7 +11,6 @@ import os
 import re
 from pathlib import Path
 
-import google.generativeai as genai
 from PIL import Image, ImageEnhance
 
 LOGO_PATH = "assets/logo.png"   # 사용자가 배치하는 큐리오 로고 경로
@@ -115,26 +114,28 @@ def _num_images_for_segment(text: str) -> int:
 def _text_to_image_prompt(text: str, api_key: str, style_prefix: str = STYLE_PREFIX,
                            variation_hint: str = "") -> str:
     """한국어 텍스트 → 영어 Imagen 프롬프트 변환."""
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    from google import genai as new_genai
 
+    client = new_genai.Client(api_key=api_key)
     system = (
         "You are an AI image prompt expert for professional product development content. "
         "Convert the Korean script text into an English image generation prompt. "
         "STRICT RULES: "
         "1. English only, 50 words max. "
         "2. ONLY adult characters (20s-40s Korean engineers/designers/planners). "
-        "3. NO children, NO baby, NO toddler, NO cartoon kids, NO cute animals. "
+        "3. Depict mature professionals only — engineers, designers, product managers. "
         "4. Real-world settings: CAD workstation, injection mold, prototype lab, meeting room, factory floor. "
         "5. Professional and realistic — this is for adult B2B tech audience. "
         f"{variation_hint} "
         'Respond JSON only: {"scene": "..."}'
     )
     try:
-        response = model.generate_content(
-            f"{system}\n\nScript: {text}\n\nJSON only:",
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json", max_output_tokens=200
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"{system}\n\nScript: {text}\n\nJSON only:",
+            config=new_genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+                max_output_tokens=200,
             ),
         )
         scene = json.loads(response.text).get("scene", text[:80])
@@ -145,22 +146,19 @@ def _text_to_image_prompt(text: str, api_key: str, style_prefix: str = STYLE_PRE
 
 
 def _generate_image(client, imagen_model: str, prompt: str) -> Image.Image | None:
-    """Imagen API 호출 → PIL Image 반환. 실패 시 None."""
-    try:
-        from google.genai import types as genai_types
-        response = client.models.generate_images(
-            model=imagen_model,
-            prompt=prompt,
-            config=genai_types.GenerateImagesConfig(
-                number_of_images=1,
-                aspect_ratio="9:16",
-                safety_filter_level="block_low_and_above",
-            ),
-        )
-        if response.generated_images:
-            return Image.open(io.BytesIO(response.generated_images[0].image.image_bytes))
-    except Exception as e:
-        print(f"[Imagen] 생성 실패: {e}")
+    """Imagen API 호출 → PIL Image 반환. 실패 시 예외 그대로 전파."""
+    from google.genai import types as genai_types
+    response = client.models.generate_images(
+        model=imagen_model,
+        prompt=prompt,
+        config=genai_types.GenerateImagesConfig(
+            number_of_images=1,
+            aspect_ratio="9:16",
+            safety_filter_level="block_medium_and_above",
+        ),
+    )
+    if response.generated_images:
+        return Image.open(io.BytesIO(response.generated_images[0].image.image_bytes))
     return None
 
 
@@ -226,7 +224,14 @@ def generate_segment_images(
             save_path = os.path.join(output_dir, filename)
 
             # 이미지 생성
-            img = _generate_image(client, imagen_model, prompt) if use_imagen else None
+            error_msg = None
+            img = None
+            if use_imagen:
+                try:
+                    img = _generate_image(client, imagen_model, prompt)
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"[Imagen] {filename} 실패: {error_msg}")
 
             if img is None:
                 img = _gradient_fallback(img_count)
@@ -244,6 +249,7 @@ def generate_segment_images(
                 "text": chunk_text,
                 "type": seg_type,
                 "point_index": seg_pidx,
+                "error": error_msg,
             })
             img_count += 1
 
@@ -263,10 +269,10 @@ def regenerate_single_image(
 
     try:
         from google import genai as new_genai
-        from google.genai import types as genai_types
         client = new_genai.Client(api_key=api_key)
         img = _generate_image(client, imagen_model, prompt)
-    except Exception:
+    except Exception as e:
+        print(f"[Imagen] 재생성 실패: {e}")
         img = None
 
     if img is None:

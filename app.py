@@ -534,7 +534,26 @@ if page == "🎬 영상 만들기":
 
         if st.session_state.image_paths:
             scenes = st.session_state.image_paths
-            st.success(f"✅ {len(scenes)}장 생성 완료!")
+            fail_count = sum(1 for s in scenes if s.get("error"))
+            ok_count = len(scenes) - fail_count
+
+            if fail_count == len(scenes):
+                # 전부 실패 — 첫 번째 에러 메시지로 원인 안내
+                first_err = next((s["error"] for s in scenes if s.get("error")), "")
+                if "429" in first_err or "RESOURCE_EXHAUSTED" in first_err:
+                    st.error(
+                        f"❌ Imagen API 일일 쿼터 초과 (429 RESOURCE_EXHAUSTED)\n\n"
+                        "**해결 방법:**\n"
+                        "- 내일 다시 시도 (무료 플랜: 70회/일)\n"
+                        "- Google AI Studio에서 과금 설정 후 한도 증가\n"
+                        "- 현재는 그라디언트 배경으로 대체되었습니다."
+                    )
+                else:
+                    st.error(f"❌ 이미지 생성 전체 실패: {first_err[:200]}")
+            elif fail_count > 0:
+                st.warning(f"⚠️ {fail_count}개 이미지 생성 실패 (그라디언트로 대체) | {ok_count}개 성공")
+            else:
+                st.success(f"✅ {len(scenes)}장 생성 완료!")
             st.divider()
 
             seg_labels = {"hook": "🎬 훅", "point": "💡 포인트", "cta": "📢 마무리"}
@@ -552,6 +571,12 @@ if page == "🎬 영상 만들기":
                         st.image(img_path, use_container_width=True)
                     else:
                         st.warning("이미지 없음")
+                    if scene.get("error"):
+                        err = scene["error"]
+                        if "429" in err or "RESOURCE_EXHAUSTED" in err:
+                            st.caption("⚠️ 쿼터 초과 → 그라디언트 대체")
+                        else:
+                            st.caption(f"⚠️ {err[:80]}")
                     # 개별 재생성 버튼 (on_click 방식)
                     st.button(
                         "🔄 재생성", key=f"regen_{i}",
@@ -588,23 +613,30 @@ if page == "🎬 영상 만들기":
             first_scene = scenes_list[0] if scenes_list else None
             hook_img = (first_scene["path"] if isinstance(first_scene, dict) else first_scene) if first_scene else None
 
+            imgbb_key = cfg.get("luma", {}).get("imgbb_api_key", "")
             if luma_key and hook_img and os.path.exists(hook_img):
-                from modules.luma_client import image_to_video
-                prompt = cfg.get("luma", {}).get(
-                    "prompt_suffix",
-                    "Smooth cinematic camera movement, professional quality, 3D Pixar style"
-                )
-                try:
-                    luma_path = run_with_progress(
-                        image_to_video,
-                        kwargs={"image_path": hook_img, "api_key": luma_key,
-                                "prompt": prompt, "output_dir": cfg["output"].get("luma_dir", "output/luma")},
-                        label="🎬 Luma AI가 인트로 영상을 생성하는 중...",
-                        est_seconds=60,
-                    )
-                    st.session_state.luma_video_path = luma_path or ""
-                except Exception:
+                if not imgbb_key:
+                    st.warning("⚠️ imgbb API 키 미설정 — [⚙️ 설정] > Luma AI 탭에서 imgbb API 키를 입력하면 Luma 인트로 영상을 생성할 수 있습니다.")
                     st.session_state.luma_video_path = ""
+                else:
+                    from modules.luma_client import image_to_video
+                    prompt = cfg.get("luma", {}).get(
+                        "prompt_suffix",
+                        "Smooth cinematic camera movement, professional quality, 3D Pixar style"
+                    )
+                    try:
+                        luma_path = run_with_progress(
+                            image_to_video,
+                            kwargs={"image_path": hook_img, "api_key": luma_key,
+                                    "prompt": prompt,
+                                    "output_dir": cfg["output"].get("luma_dir", "output/luma"),
+                                    "imgbb_api_key": imgbb_key},
+                            label="🎬 Luma AI가 인트로 영상을 생성하는 중...",
+                            est_seconds=90,
+                        )
+                        st.session_state.luma_video_path = luma_path or ""
+                    except Exception:
+                        st.session_state.luma_video_path = ""
                 if st.session_state.luma_video_path:
                     st.success("✅ Luma AI 인트로 영상 생성 완료!")
                 else:
@@ -784,12 +816,24 @@ elif page == "⚙️ 설정":
             value=cfg.get("luma", {}).get("prompt_suffix",
                 "Smooth cinematic camera movement, professional quality, 3D Pixar style")
         )
-        st.caption("💡 첫 5초 hook 이미지를 AI 동영상으로 변환하는 데 사용됩니다.")
+
+        st.divider()
+        st.markdown("**🖼 imgbb API 키** (로컬 이미지 → 공개 URL 변환용, Luma 필수)")
+        st.markdown(
+            "무료 발급: [api.imgbb.com](https://api.imgbb.com) → **Get API key** (무료, 초당 1,000회)"
+        )
+        imgbb_key = st.text_input(
+            "imgbb API 키", value=cfg.get("luma", {}).get("imgbb_api_key", ""),
+            type="password", placeholder="abc123..."
+        )
+        st.caption("💡 Luma AI는 공개 URL만 지원합니다. imgbb가 로컬 이미지를 10분간 임시 공개 URL로 변환합니다.")
+
         if st.button("Luma 설정 저장", type="primary"):
             if "luma" not in cfg:
                 cfg["luma"] = {}
             cfg["luma"]["api_key"] = luma_key
             cfg["luma"]["prompt_suffix"] = luma_prompt
+            cfg["luma"]["imgbb_api_key"] = imgbb_key
             save_config(cfg)
             st.success("저장 완료!")
 

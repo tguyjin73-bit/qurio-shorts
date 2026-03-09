@@ -95,7 +95,9 @@ def _get_audio_duration(path: str) -> float:
 def _generate_edge_tts(script_text: str, output_path: str, voice: str = "echo", speed: float = 1.0) -> None:
     """edge-tts로 한국어 음성 생성 (비동기 → 동기 래퍼).
     GookMinNeural 없을 경우 InJoonNeural로 자동 fallback.
+    Windows + Streamlit 백그라운드 스레드: SelectorEventLoop 명시적 사용.
     """
+    import sys
     import edge_tts
 
     edge_voice = EDGE_TTS_VOICE_MAP.get(voice, DEFAULT_MALE_VOICE)
@@ -108,13 +110,24 @@ def _generate_edge_tts(script_text: str, output_path: str, voice: str = "echo", 
         communicate = edge_tts.Communicate(script_text, v, rate=rate_str)
         await communicate.save(output_path)
 
-    # GookMinNeural 시도 → 실패 시 InJoonNeural로 fallback
+    # Windows: SelectorEventLoopPolicy로 ProactorEventLoop 충돌 방지
+    # (Streamlit 백그라운드 스레드 + Python 3.14 호환)
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     try:
-        asyncio.run(_run(edge_voice))
-    except Exception:
-        fallback = "ko-KR-InJoonNeural"
-        if edge_voice != fallback:
-            asyncio.run(_run(fallback))
+        # GookMinNeural 시도 → 실패 시 InJoonNeural로 fallback
+        try:
+            loop.run_until_complete(_run(edge_voice))
+        except Exception:
+            fallback = "ko-KR-InJoonNeural"
+            if edge_voice != fallback:
+                loop.run_until_complete(_run(fallback))
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)
 
 
 def generate_tts(
@@ -136,6 +149,9 @@ def generate_tts(
     # 발음 전처리 (CAD→캐드, 3D→쓰리디 등)
     script_text = preprocess_tts_text(script_text)
 
+    edge_error = None
+    openai_error = None
+
     # 1순위: edge-tts (무료)
     try:
         _generate_edge_tts(script_text, output_path, voice=voice, speed=speed)
@@ -143,7 +159,8 @@ def generate_tts(
         print(f"[TTS] edge-tts 생성 완료: {output_path} ({duration:.1f}초)")
         return {"audio_path": output_path, "duration_seconds": duration}
     except Exception as e:
-        print(f"[TTS] edge-tts 실패: {e}, OpenAI로 재시도")
+        edge_error = str(e)
+        print(f"[TTS] edge-tts 실패: {edge_error}, OpenAI로 재시도")
 
     # 2순위: OpenAI TTS (api_key 있을 때)
     if api_key:
@@ -157,12 +174,29 @@ def generate_tts(
                 response_format="mp3",
                 speed=speed,
             )
-            with open(output_path, "wb") as f:
-                f.write(response.content)
+            # openai SDK 1.x / 2.x 모두 호환
+            if hasattr(response, "stream_to_file"):
+                response.stream_to_file(output_path)
+            elif hasattr(response, "content"):
+                with open(output_path, "wb") as f:
+                    f.write(response.content)
+            else:
+                with open(output_path, "wb") as f:
+                    for chunk in response.iter_bytes():
+                        f.write(chunk)
             duration = _get_audio_duration(output_path)
             print(f"[TTS] OpenAI TTS 생성 완료: {output_path} ({duration:.1f}초)")
             return {"audio_path": output_path, "duration_seconds": duration}
         except Exception as e:
-            print(f"[TTS] OpenAI TTS 실패: {e}")
+            openai_error = str(e)
+            print(f"[TTS] OpenAI TTS 실패: {openai_error}")
 
-    raise RuntimeError("TTS 생성 실패: edge-tts와 OpenAI 모두 실패했습니다.")
+    # 두 방법 모두 실패 — 실제 오류 메시지 포함
+    parts = []
+    if edge_error:
+        parts.append(f"edge-tts: {edge_error[:150]}")
+    if openai_error:
+        parts.append(f"OpenAI: {openai_error[:150]}")
+    elif not api_key:
+        parts.append("OpenAI: API 키 없음")
+    raise RuntimeError("edge-tts와 OpenAI 모두 실패:\n" + "\n".join(parts))
