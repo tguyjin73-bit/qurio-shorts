@@ -154,7 +154,7 @@ def _generate_image(client, imagen_model: str, prompt: str) -> Image.Image | Non
         config=genai_types.GenerateImagesConfig(
             number_of_images=1,
             aspect_ratio="9:16",
-            safety_filter_level="block_medium_and_above",
+            safety_filter_level="block_low_and_above",
         ),
     )
     if response.generated_images:
