@@ -15,6 +15,7 @@ import datetime
 import json
 import os
 import time
+import threading
 from pathlib import Path
 
 import streamlit as st
@@ -165,6 +166,43 @@ def check_ready(cfg: dict) -> list:
     return missing
 
 
+def run_with_progress(fn, args=(), kwargs=None, label="처리 중...", est_seconds=20):
+    """API 호출을 백그라운드 스레드에서 실행하면서 진행률 바 표시."""
+    if kwargs is None:
+        kwargs = {}
+    result_holder = [None]
+    error_holder = [None]
+    done = threading.Event()
+
+    def worker():
+        try:
+            result_holder[0] = fn(*args, **kwargs)
+        except Exception as e:
+            error_holder[0] = e
+        finally:
+            done.set()
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+    bar = st.progress(0, text=label)
+    elapsed = 0.0
+    interval = 0.3
+    while not done.wait(timeout=interval):
+        elapsed += interval
+        pct = min(0.92, elapsed / max(est_seconds, 1))
+        bar.progress(pct, text=f"{label} ({int(elapsed)}초 경과)")
+
+    t.join()
+    bar.progress(1.0, text="✅ 완료!")
+    time.sleep(0.4)
+    bar.empty()
+
+    if error_holder[0]:
+        raise error_holder[0]
+    return result_holder[0]
+
+
 def get_used_titles() -> list:
     log = load_log()
     return [e.get("topic_title", "") for e in log if e.get("topic_title")]
@@ -306,16 +344,19 @@ if page == "🎬 영상 만들기":
             gen_btn = st.button("🎲 주제 5개 생성", type="primary", use_container_width=True)
 
         if gen_btn:
-            with st.spinner("Gemini가 주제를 생성하는 중... (10~20초)"):
-                from modules.script_generator import generate_topics_dynamic
-                used = get_used_titles()
-                topics = generate_topics_dynamic(
-                    api_key=cfg["gemini"]["api_key"],
-                    model=cfg["gemini"]["model"],
-                    used_titles=used,
-                    count=5,
+            from modules.script_generator import generate_topics_dynamic
+            used = get_used_titles()
+            try:
+                topics = run_with_progress(
+                    generate_topics_dynamic,
+                    kwargs={"api_key": cfg["gemini"]["api_key"], "model": cfg["gemini"]["model"],
+                            "used_titles": used, "count": 5},
+                    label="🎲 Gemini가 주제를 생성하는 중...",
+                    est_seconds=20,
                 )
                 st.session_state.topic_options = topics
+            except Exception as e:
+                st.error(f"❌ 주제 생성 실패: {e}")
 
         if st.session_state.topic_options:
             st.divider()
@@ -345,15 +386,23 @@ if page == "🎬 영상 만들기":
         st.info(f"**선택 주제**: {topic.get('category', '')} | {topic['title']}")
 
         if st.session_state.script_data is None:
-            with st.spinner("Gemini가 대본을 작성하는 중... (10~20초)"):
-                from modules.script_generator import generate_script
-                script_data = generate_script(
-                    topic=topic,
-                    api_key=cfg["gemini"]["api_key"],
-                    model=cfg["gemini"]["model"],
+            from modules.script_generator import generate_script
+            try:
+                script_data = run_with_progress(
+                    generate_script,
+                    kwargs={"topic": topic, "api_key": cfg["gemini"]["api_key"],
+                            "model": cfg["gemini"]["model"]},
+                    label="📝 Gemini가 대본을 작성하는 중...",
+                    est_seconds=20,
                 )
                 st.session_state.script_data = script_data
                 st.session_state.edited_script = script_data.copy()
+            except Exception as e:
+                st.error(f"❌ 대본 생성 실패: {e}")
+                st.stop()
+
+        if st.session_state.script_data is None:
+            st.stop()
 
         script = st.session_state.script_data
         edited = st.session_state.edited_script
@@ -438,19 +487,22 @@ if page == "🎬 영상 만들기":
 
         if gen_btn:
             st.session_state.image_paths = None
-            with st.spinner("Gemini Imagen이 이미지를 생성하는 중..."):
-                from modules.image_generator import generate_segment_images
-                style = cfg.get("image", {}).get("style_prefix",
-                    "3D Pixar animation style, vibrant colors, friendly characters")
-                imagen_model = cfg["gemini"].get("imagen_model", "imagen-4.0-fast-generate-001")
-                scenes = generate_segment_images(
-                    script_data=script,
-                    api_key=cfg["gemini"]["api_key"],
-                    imagen_model=imagen_model,
-                    style_prefix=style,
-                    output_dir=cfg.get("image", {}).get("output_dir", "output/images"),
+            from modules.image_generator import generate_segment_images
+            style = cfg.get("image", {}).get("style_prefix",
+                "3D Pixar animation style, vibrant colors, friendly characters")
+            imagen_model = cfg["gemini"].get("imagen_model", "imagen-4.0-fast-generate-001")
+            try:
+                scenes = run_with_progress(
+                    generate_segment_images,
+                    kwargs={"script_data": script, "api_key": cfg["gemini"]["api_key"],
+                            "imagen_model": imagen_model, "style_prefix": style,
+                            "output_dir": cfg.get("image", {}).get("output_dir", "output/images")},
+                    label="🎨 Gemini Imagen이 이미지를 생성하는 중...",
+                    est_seconds=len(segments) * 15,
                 )
-                st.session_state.image_paths = scenes  # list[dict]
+                st.session_state.image_paths = scenes
+            except Exception as e:
+                st.error(f"❌ 이미지 생성 실패: {e}")
 
         # 개별 재생성 처리 (on_click 콜백으로 트리거된 경우)
         if st.session_state.get("regen_index") is not None:
@@ -537,19 +589,22 @@ if page == "🎬 영상 만들기":
             hook_img = (first_scene["path"] if isinstance(first_scene, dict) else first_scene) if first_scene else None
 
             if luma_key and hook_img and os.path.exists(hook_img):
-                with st.spinner("🎬 Luma AI가 인트로 영상을 생성하는 중... (30~90초)"):
-                    from modules.luma_client import image_to_video
-                    prompt = cfg.get("luma", {}).get(
-                        "prompt_suffix",
-                        "Smooth cinematic camera movement, professional quality, 3D Pixar style"
-                    )
-                    luma_path = image_to_video(
-                        image_path=hook_img,
-                        api_key=luma_key,
-                        prompt=prompt,
-                        output_dir=cfg["output"].get("luma_dir", "output/luma"),
+                from modules.luma_client import image_to_video
+                prompt = cfg.get("luma", {}).get(
+                    "prompt_suffix",
+                    "Smooth cinematic camera movement, professional quality, 3D Pixar style"
+                )
+                try:
+                    luma_path = run_with_progress(
+                        image_to_video,
+                        kwargs={"image_path": hook_img, "api_key": luma_key,
+                                "prompt": prompt, "output_dir": cfg["output"].get("luma_dir", "output/luma")},
+                        label="🎬 Luma AI가 인트로 영상을 생성하는 중...",
+                        est_seconds=60,
                     )
                     st.session_state.luma_video_path = luma_path or ""
+                except Exception:
+                    st.session_state.luma_video_path = ""
                 if st.session_state.luma_video_path:
                     st.success("✅ Luma AI 인트로 영상 생성 완료!")
                 else:
@@ -561,41 +616,50 @@ if page == "🎬 영상 만들기":
 
         # ── TTS + 영상 합성 ──────────────────────────────────────────────────
         if st.session_state.video_path is None:
-            with st.spinner("🎙 TTS 음성 + 🎬 영상 합성 중... (1~2분 소요)"):
-                date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-                # TTS 생성
-                from modules.tts_generator import generate_tts
-                audio_path = os.path.join(
-                    cfg["output"]["audio_dir"], f"tts_{date_str}.mp3"
-                )
-                full_script = script.get("full_script", " ".join(
-                    s["text"] for s in script.get("segments", [])
-                ))
-                tts_result = generate_tts(
-                    script_text=full_script,
-                    output_path=audio_path,
-                    api_key=cfg["openai"]["api_key"],
-                    model=cfg["openai"]["tts_model"],
-                    voice=cfg["openai"]["tts_voice"],
-                    speed=cfg["openai"]["tts_speed"],
+            # TTS 생성
+            from modules.tts_generator import generate_tts
+            audio_path = os.path.join(cfg["output"]["audio_dir"], f"tts_{date_str}.mp3")
+            full_script = script.get("full_script", " ".join(
+                s["text"] for s in script.get("segments", [])
+            ))
+            try:
+                tts_result = run_with_progress(
+                    generate_tts,
+                    kwargs={"script_text": full_script, "output_path": audio_path,
+                            "api_key": cfg["openai"]["api_key"],
+                            "model": cfg["openai"]["tts_model"],
+                            "voice": cfg["openai"]["tts_voice"],
+                            "speed": cfg["openai"]["tts_speed"]},
+                    label="🎙 TTS 음성을 생성하는 중...",
+                    est_seconds=15,
                 )
                 st.session_state.tts_result = tts_result
+            except Exception as e:
+                st.error(f"❌ TTS 생성 실패: {e}")
+                st.stop()
 
-                # 영상 합성
-                from modules.video_builder import build_video_from_scenes
-                video_filename = f"shorts_{date_str}.mp4"
-                video_path = os.path.join(cfg["output"]["video_dir"], video_filename)
-
-                build_video_from_scenes(
-                    scenes=st.session_state.image_paths or [],
-                    audio_path=tts_result["audio_path"],
-                    audio_duration=tts_result["duration_seconds"],
-                    output_path=video_path,
-                    font_path=cfg["video"]["font_path"],
-                    luma_video_path=st.session_state.luma_video_path or None,
+            # 영상 합성
+            from modules.video_builder import build_video_from_scenes
+            video_filename = f"shorts_{date_str}.mp4"
+            video_path = os.path.join(cfg["output"]["video_dir"], video_filename)
+            try:
+                run_with_progress(
+                    build_video_from_scenes,
+                    kwargs={"scenes": st.session_state.image_paths or [],
+                            "audio_path": tts_result["audio_path"],
+                            "audio_duration": tts_result["duration_seconds"],
+                            "output_path": video_path,
+                            "font_path": cfg["video"]["font_path"],
+                            "luma_video_path": st.session_state.luma_video_path or None},
+                    label="🎬 영상을 합성하는 중...",
+                    est_seconds=40,
                 )
                 st.session_state.video_path = video_path
+            except Exception as e:
+                st.error(f"❌ 영상 합성 실패: {e}")
+                st.stop()
 
         st.success("✅ 영상 합성 완료!")
         tts = st.session_state.tts_result
