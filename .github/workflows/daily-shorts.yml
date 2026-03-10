@@ -1,0 +1,97 @@
+name: Daily YouTube Shorts Upload
+
+on:
+  schedule:
+    # 매일 한국시간 09:00 = UTC 00:00
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # GitHub Actions 화면에서 수동 실행 버튼 제공
+
+jobs:
+  generate-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 1. 코드 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Python 설정 (3.11 - 안정적인 LTS)
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # 3. 시스템 패키지 설치 (ffmpeg + 한국어 폰트)
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg \
+            fonts-nanum
+
+      # 4. Python 패키지 설치
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # 5. API 키로 config.json 생성
+      - name: Generate config.json from secrets
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          LUMA_API_KEY: ${{ secrets.LUMA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python generate_config.py
+
+      # 6. YouTube OAuth 인증 파일 복원 (Base64 → 바이너리)
+      - name: Restore YouTube credentials
+        env:
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+        run: |
+          echo "$YOUTUBE_TOKEN_B64" | base64 -d > token.pickle
+          echo "$YOUTUBE_CLIENT_SECRET_B64" | base64 -d > client_secret.json
+          echo "[OK] YouTube 인증 파일 복원 완료"
+
+      # 7. 한국어 폰트 경로 설정 (CI에서는 시스템 폰트 사용)
+      - name: Set Korean font path in config
+        run: |
+          python - <<'EOF'
+          import json, os, glob
+
+          # Nanum 폰트 경로 자동 탐색
+          candidates = glob.glob("/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf") + \
+                       glob.glob("/usr/share/fonts/**/NanumGothicBold.ttf", recursive=True) + \
+                       ["assets/fonts/NanumGothicBold.ttf"]
+
+          font_path = next((p for p in candidates if os.path.exists(p)), candidates[-1])
+          print(f"[폰트] 사용 경로: {font_path}")
+
+          with open("config.json", "r", encoding="utf-8") as f:
+              cfg = json.load(f)
+          cfg["video"]["font_path"] = font_path
+          with open("config.json", "w", encoding="utf-8") as f:
+              json.dump(cfg, f, ensure_ascii=False, indent=2)
+          EOF
+
+      # 8. 출력 디렉토리 생성
+      - name: Create output directories
+        run: |
+          mkdir -p output/audio output/video output/images output/luma logs
+
+      # 9. 파이프라인 실행 (1개 영상 생성 + YouTube 업로드)
+      - name: Run pipeline
+        run: python auto_pipeline.py
+
+      # 10. 로그 업로드 (실패 시에도 확인용)
+      - name: Upload logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 7

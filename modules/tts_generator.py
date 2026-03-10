@@ -1,7 +1,8 @@
 """
 TTS 음성 생성 모듈.
-- 기본: edge-tts (Microsoft Edge, 무료, 한국어 고품질)
-- 대체: OpenAI TTS (유료, api_key 있을 때)
+- 1순위: ElevenLabs (유료, 최고 자연스러움, api_key + voice_id 있을 때)
+- 2순위: edge-tts (Microsoft Edge, 무료, 한국어 고품질)
+- 3순위: OpenAI TTS (유료, api_key 있을 때)
 """
 
 import asyncio
@@ -133,6 +134,38 @@ def _generate_edge_tts(script_text: str, output_path: str, voice: str = "echo", 
         asyncio.set_event_loop(None)
 
 
+def _generate_elevenlabs_tts(script_text: str, output_path: str,
+                              api_key: str, voice_id: str,
+                              model_id: str = "eleven_multilingual_v2",
+                              stability: float = 0.5,
+                              similarity_boost: float = 0.75) -> None:
+    """ElevenLabs API로 한국어 음성 생성.
+    eleven_multilingual_v2 모델: 한국어 지원, 자연스러운 억양.
+    stability 0.5 / similarity_boost 0.75 → 자연스럽고 명확한 발음.
+    """
+    import requests
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+    }
+    payload = {
+        "text": script_text,
+        "model_id": model_id,
+        "voice_settings": {
+            "stability": stability,
+            "similarity_boost": similarity_boost,
+        },
+    }
+    resp = requests.post(url, json=payload, headers=headers, timeout=60)
+    if resp.status_code != 200:
+        raise RuntimeError(f"ElevenLabs HTTP {resp.status_code}: {resp.text[:200]}")
+    with open(output_path, "wb") as f:
+        f.write(resp.content)
+
+
 def generate_tts(
     script_text: str,
     output_path: str,
@@ -140,9 +173,12 @@ def generate_tts(
     model: str = "tts-1",
     voice: str = "nova",
     speed: float = 1.05,
+    elevenlabs_api_key: str = "",
+    elevenlabs_voice_id: str = "",
+    elevenlabs_model: str = "eleven_multilingual_v2",
 ) -> dict:
     """
-    TTS 음성 생성. edge-tts 우선 사용, 실패 시 OpenAI로 fallback.
+    TTS 음성 생성. ElevenLabs → edge-tts → OpenAI 순으로 시도.
 
     Returns:
         {"audio_path": str, "duration_seconds": float}
@@ -152,10 +188,27 @@ def generate_tts(
     # 발음 전처리 (CAD→캐드, 3D→쓰리디 등)
     script_text = preprocess_tts_text(script_text)
 
+    elevenlabs_error = None
     edge_error = None
     openai_error = None
 
-    # 1순위: edge-tts (무료)
+    # 1순위: ElevenLabs (api_key + voice_id 있을 때)
+    if elevenlabs_api_key and elevenlabs_voice_id:
+        try:
+            _generate_elevenlabs_tts(
+                script_text, output_path,
+                api_key=elevenlabs_api_key,
+                voice_id=elevenlabs_voice_id,
+                model_id=elevenlabs_model,
+            )
+            duration = _get_audio_duration(output_path)
+            print(f"[TTS] ElevenLabs 생성 완료: {output_path} ({duration:.1f}초)")
+            return {"audio_path": output_path, "duration_seconds": duration}
+        except Exception as e:
+            elevenlabs_error = str(e)
+            print(f"[TTS] ElevenLabs 실패: {elevenlabs_error}, edge-tts로 재시도")
+
+    # 2순위: edge-tts (무료)
     try:
         _generate_edge_tts(script_text, output_path, voice=voice, speed=speed)
         duration = _get_audio_duration(output_path)
@@ -165,7 +218,7 @@ def generate_tts(
         edge_error = str(e)
         print(f"[TTS] edge-tts 실패: {edge_error}, OpenAI로 재시도")
 
-    # 2순위: OpenAI TTS (api_key 있을 때)
+    # 3순위: OpenAI TTS (api_key 있을 때)
     if api_key:
         try:
             from openai import OpenAI
@@ -194,12 +247,14 @@ def generate_tts(
             openai_error = str(e)
             print(f"[TTS] OpenAI TTS 실패: {openai_error}")
 
-    # 두 방법 모두 실패 — 실제 오류 메시지 포함
+    # 모두 실패 — 실제 오류 메시지 포함
     parts = []
+    if elevenlabs_error:
+        parts.append(f"ElevenLabs: {elevenlabs_error[:150]}")
     if edge_error:
         parts.append(f"edge-tts: {edge_error[:150]}")
     if openai_error:
         parts.append(f"OpenAI: {openai_error[:150]}")
     elif not api_key:
         parts.append("OpenAI: API 키 없음")
-    raise RuntimeError("edge-tts와 OpenAI 모두 실패:\n" + "\n".join(parts))
+    raise RuntimeError("모든 TTS 방법 실패:\n" + "\n".join(parts))

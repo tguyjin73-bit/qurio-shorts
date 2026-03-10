@@ -6,7 +6,10 @@ import googleapiclient.discovery
 import googleapiclient.errors
 import googleapiclient.http
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",   # 채널 영상 제목 검색용
+]
 TOKEN_CACHE = "token.pickle"
 
 

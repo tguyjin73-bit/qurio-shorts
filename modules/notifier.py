@@ -179,3 +179,37 @@ def notify_upload_complete(
         f"YouTube Studio에서 공개로 변경할 수 있습니다."
     )
     return send_telegram(bot_token, chat_id, text)
+
+
+def notify_success(
+    bot_token: str, chat_id: str, topic_title: str,
+    youtube_id: str, duration_seconds: float
+) -> bool:
+    """자동화 파이프라인 성공 알림 (공개 업로드)."""
+    url = f"https://youtube.com/shorts/{youtube_id}"
+    now = __import__("datetime").datetime.now().strftime("%m/%d %H:%M")
+    text = (
+        f"✅ <b>자동 업로드 완료!</b> ({now})\n\n"
+        f"📌 <b>주제</b>: {topic_title}\n"
+        f"⏱ <b>길이</b>: {duration_seconds:.0f}초\n"
+        f"🌐 <b>공개</b> 업로드됨\n"
+        f"🔗 <a href='{url}'>{url}</a>"
+    )
+    return send_telegram(bot_token, chat_id, text)
+
+
+def notify_error(
+    bot_token: str, chat_id: str, error_msg: str, traceback_str: str = ""
+) -> bool:
+    """자동화 파이프라인 실패 알림."""
+    now = __import__("datetime").datetime.now().strftime("%m/%d %H:%M")
+    # traceback에서 마지막 5줄만 포함 (너무 길면 잘라냄)
+    tb_lines = [l for l in traceback_str.strip().splitlines() if l.strip()]
+    tb_short = "\n".join(tb_lines[-5:]) if tb_lines else ""
+    text = (
+        f"❌ <b>자동화 파이프라인 실패!</b> ({now})\n\n"
+        f"<b>오류</b>: {error_msg[:200]}\n\n"
+        f"<code>{tb_short[:400]}</code>\n\n"
+        f"logs/ 폴더에서 상세 로그를 확인하세요."
+    )
+    return send_telegram(bot_token, chat_id, text)

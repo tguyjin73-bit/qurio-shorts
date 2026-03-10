@@ -1,13 +1,29 @@
-google-auth-oauthlib
-google-auth-httplib2
-google-api-python-client
-moviepy
-schedule
+# YouTube Shorts 자동 생성 파이프라인 의존성
+# GitHub Actions (Ubuntu) + 로컬 Windows 공통
+
+# AI / 생성
 openai>=1.30.0
-numpy>=1.24.0
-pillow>=10.0.0
-streamlit>=1.35.0
 google-generativeai>=0.8.0
 google-genai>=0.8.0
-requests>=2.28.0
+
+# 영상 합성
+moviepy==1.0.3
+numpy>=1.24.0
+pillow>=10.0.0
+imageio>=2.28.0
+imageio-ffmpeg>=0.4.9
+decorator>=4.4.2
+proglog>=0.1.10
+
+# TTS
 edge-tts>=6.1.0
+
+# YouTube 업로드
+google-api-python-client>=2.100.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.2.0
+google-auth>=2.23.0
+
+# HTTP / 기타
+requests>=2.28.0
+schedule>=1.2.0

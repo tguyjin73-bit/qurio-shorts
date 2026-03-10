@@ -18,7 +18,7 @@ LOGO_PATH = "assets/logo.png"   # 사용자가 배치하는 큐리오 로고 경
 
 
 def _apply_logo(img: Image.Image, logo_path: str = LOGO_PATH,
-                opacity: float = 0.72, padding: int = 28) -> Image.Image:
+                opacity: float = 0.72, padding: int = 42) -> Image.Image:
     """이미지 우측 상단에 로고 반투명 오버레이.
 
     - 흰 배경 자동 누끼 처리 (흰색 계열 픽셀 → 투명)
@@ -174,13 +174,38 @@ def _generate_image(client, imagen_model: str, prompt: str,
     raise last_exc
 
 
+def _generate_dalle3_image(prompt: str, api_key: str, quality: str = "standard") -> Image.Image | None:
+    """DALL-E 3로 이미지 생성 (Imagen 429 quota 초과 시 fallback).
+
+    Size : 1024x1792 (9:16 portrait, Shorts 최적)
+    Cost : standard=$0.04/장, hd=$0.08/장
+    """
+    try:
+        import base64
+        import openai
+        client = openai.OpenAI(api_key=api_key)
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size="1024x1792",
+            quality=quality,
+            response_format="b64_json",
+            n=1,
+        )
+        img_bytes = base64.b64decode(response.data[0].b64_json)
+        return Image.open(io.BytesIO(img_bytes))
+    except Exception as e:
+        print(f"[DALL-E 3] 실패: {e}")
+        return None
+
+
 def _gradient_fallback(idx: int = 0) -> Image.Image:
     """그라디언트 대체 이미지."""
     import numpy as np
     c1, c2 = GRADIENT_COLORS[idx % len(GRADIENT_COLORS)]
-    arr = np.zeros((1280, 720, 3), dtype=np.uint8)
-    for y in range(1280):
-        t = y / 1280
+    arr = np.zeros((1920, 1080, 3), dtype=np.uint8)
+    for y in range(1920):
+        t = y / 1920
         arr[y, :] = [int(c1[j]*(1-t) + c2[j]*t) for j in range(3)]
     return Image.fromarray(arr)
 
@@ -191,6 +216,8 @@ def generate_segment_images(
     imagen_model: str = "imagen-4.0-fast-generate-001",
     style_prefix: str = STYLE_PREFIX,
     output_dir: str = "output/images",
+    openai_api_key: str = "",
+    dalle3_quality: str = "standard",
 ) -> list:
     """
     대본 세그먼트별 이미지 생성 (세그먼트당 1~3개, 길이에 따라 자동 결정).
@@ -216,7 +243,10 @@ def generate_segment_images(
     img_count = 0  # 전체 이미지 인덱스 (파일명용)
 
     for seg in segments:
-        seg_text = seg["text"]
+        # GPT가 간혹 "text" 대신 "content"/"narration" 키를 반환할 때 방어 처리
+        seg_text = seg.get("text") or seg.get("content") or seg.get("narration") or ""
+        if not seg_text:
+            continue  # 텍스트 없는 세그먼트는 건너뜀
         seg_type = seg.get("type", "point")
         seg_pidx = seg.get("index")
 
@@ -247,12 +277,20 @@ def generate_segment_images(
                     error_msg = str(e)
                     print(f"[Imagen] {filename} 실패: {error_msg}")
 
+            # 2순위: DALL-E 3 (Imagen 실패 시, openai_api_key 있을 때)
+            if img is None and openai_api_key:
+                print(f"[DALL-E 3] {filename} 생성 시도 중...")
+                img = _generate_dalle3_image(prompt, openai_api_key, dalle3_quality)
+                if img:
+                    print(f"[DALL-E 3] {filename} 성공!")
+
+            # 3순위: 그라디언트 fallback
             if img is None:
                 img = _gradient_fallback(img_count)
-                print(f"[Imagen] {filename}: 그라디언트 fallback")
+                print(f"[이미지] {filename}: 그라디언트 fallback")
 
-            if img.size != (720, 1280):
-                img = img.resize((720, 1280), Image.LANCZOS)
+            if img.size != (1080, 1920):
+                img = img.resize((1080, 1920), Image.LANCZOS)
 
             img = _apply_logo(img)  # 우측 상단 로고 오버레이
             img.save(save_path, "PNG")
@@ -292,8 +330,8 @@ def regenerate_single_image(
     if img is None:
         img = _gradient_fallback(index)
 
-    if img.size != (720, 1280):
-        img = img.resize((720, 1280), Image.LANCZOS)
+    if img.size != (1080, 1920):
+        img = img.resize((1080, 1920), Image.LANCZOS)
 
     img = _apply_logo(img)  # 우측 상단 로고 오버레이
     Path(output_dir).mkdir(parents=True, exist_ok=True)

@@ -209,9 +209,55 @@ JSON 구조로만 응답:
 image_prompts는 Gemini Imagen에 직접 넣을 영어 프롬프트입니다.
 반드시 성인 캐릭터만 등장시키고, 실제 제품개발·기구개발 작업 환경을 시각화하세요."""
 
-    # 최대 2회 재시도 (JSON 잘림 방지)
+    def _repair_json(text: str) -> dict:
+        """잘린 JSON을 자동 복구해서 파싱."""
+        # 1. JSON 블록 추출 (```json ... ``` 또는 { ... })
+        start = text.find("{")
+        if start == -1:
+            raise ValueError("JSON 블록 없음")
+        text = text[start:]
+
+        # 2. 따옴표가 닫히지 않은 경우 → 마지막 완전한 필드까지 자르기
+        # 마지막 쉼표 이후 잘린 필드 제거
+        last_comma = max(text.rfind(",\n"), text.rfind(", "))
+        last_close = max(text.rfind("}"), text.rfind("]"))
+
+        if last_comma > last_close and last_comma > 0:
+            text = text[:last_comma]
+
+        # 3. 열린 괄호 자동 닫기
+        stack = []
+        in_str = False
+        escape = False
+        for ch in text:
+            if escape:
+                escape = False
+                continue
+            if ch == "\\" and in_str:
+                escape = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if not in_str:
+                if ch in "{[":
+                    stack.append("}" if ch == "{" else "]")
+                elif ch in "}]":
+                    if stack and stack[-1] == ch:
+                        stack.pop()
+
+        # 문자열이 열린 채로 끝난 경우 닫기
+        if in_str:
+            text += '"'
+        # 닫히지 않은 괄호 닫기
+        for closer in reversed(stack):
+            text += closer
+
+        return json.loads(text)
+
+    # 최대 3회 재시도 (JSON 잘림 방지)
     last_err = None
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             response = model_obj.generate_content(
                 prompt,
@@ -220,22 +266,35 @@ image_prompts는 Gemini Imagen에 직접 넣을 영어 프롬프트입니다.
                     max_output_tokens=8192,
                 ),
             )
-            return json.loads(response.text)
-        except json.JSONDecodeError as e:
-            last_err = e
-            print(f"[ScriptGen] JSON 파싱 오류 (시도 {attempt+1}/2): {e}")
-            # 응답 텍스트에서 JSON 블록 추출 재시도
+            # 1차: 정상 파싱
             try:
-                text = response.text
-                start = text.find("{")
-                end = text.rfind("}") + 1
-                if start != -1 and end > start:
-                    return json.loads(text[start:end])
-            except Exception:
-                pass
+                return json.loads(response.text)
+            except json.JSONDecodeError as e:
+                last_err = e
+                print(f"[ScriptGen] JSON 파싱 오류 (시도 {attempt+1}/3): {e}")
+                # 2차: 자동 복구 시도
+                try:
+                    result = _repair_json(response.text)
+                    # full_script가 없으면 segments에서 조합
+                    if "segments" in result and not result.get("full_script"):
+                        result["full_script"] = " ".join(
+                            s.get("text", "") for s in result["segments"]
+                        )
+                    print(f"[ScriptGen] JSON 복구 성공 (시도 {attempt+1}/3)")
+                    return result
+                except Exception as repair_err:
+                    print(f"[ScriptGen] JSON 복구 실패: {repair_err}")
+                    if attempt < 2:
+                        import time
+                        time.sleep(3)
+                    continue
+
         except Exception as e:
             last_err = e
-            print(f"[ScriptGen] 대본 생성 오류 (시도 {attempt+1}/2): {e}")
+            print(f"[ScriptGen] 대본 생성 오류 (시도 {attempt+1}/3): {e}")
+            if attempt < 2:
+                import time
+                time.sleep(3)
 
     raise RuntimeError(f"대본 생성 실패: {last_err}")
 

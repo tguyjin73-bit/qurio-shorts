@@ -14,7 +14,6 @@ YouTube Shorts 자동 생성 - 6단계 위자드 Streamlit 앱
 import datetime
 import json
 import os
-import time
 import threading
 from pathlib import Path
 
@@ -114,7 +113,7 @@ def check_ready(cfg: dict) -> list:
 
 
 def run_with_progress(fn, args=(), kwargs=None, label="처리 중...", est_seconds=20):
-    """API 호출을 백그라운드 스레드에서 실행하면서 진행률 바 표시."""
+    """API 호출을 백그라운드 스레드에서 실행하면서 스피너 표시."""
     if kwargs is None:
         kwargs = {}
     result_holder = [None]
@@ -132,18 +131,10 @@ def run_with_progress(fn, args=(), kwargs=None, label="처리 중...", est_secon
     t = threading.Thread(target=worker, daemon=True)
     t.start()
 
-    bar = st.progress(0, text=label)
-    elapsed = 0.0
-    interval = 0.3
-    while not done.wait(timeout=interval):
-        elapsed += interval
-        pct = min(0.92, elapsed / max(est_seconds, 1))
-        bar.progress(pct, text=f"{label} ({int(elapsed)}초 경과)")
+    with st.spinner(label):
+        done.wait()
 
     t.join()
-    bar.progress(1.0, text="✅ 완료!")
-    time.sleep(0.4)
-    bar.empty()
 
     if error_holder[0]:
         raise error_holder[0]
@@ -332,6 +323,16 @@ if page == "🎬 영상 만들기":
         topic = st.session_state.selected_topic
         st.info(f"**선택 주제**: {topic.get('category', '')} | {topic['title']}")
 
+        # 상단 네비게이션
+        _nc1, _nc2, _nc3 = st.columns(3)
+        with _nc1:
+            st.button("← 주제 다시 선택", key="top_back_s2", on_click=_back_to_step1)
+        with _nc2:
+            st.button("🔄 대본 다시 생성", key="top_regen_s2", on_click=_regen_script)
+        with _nc3:
+            st.button("대본 확정 → 이미지 생성 ▶", key="top_next_s2", type="primary", on_click=_go_to_step3)
+        st.divider()
+
         if st.session_state.script_data is None:
             from modules.script_generator import generate_script
             try:
@@ -414,6 +415,17 @@ if page == "🎬 영상 만들기":
         st.title("🎨 Step 3 / 5 — 이미지 생성")
         script = st.session_state.edited_script or st.session_state.script_data
         segments = script.get("segments", [])
+
+        # 상단 네비게이션
+        _nc1, _nc2, _nc3 = st.columns(3)
+        with _nc1:
+            st.button("← 대본으로", key="top_back_s3", on_click=_back_to_step2)
+        with _nc2:
+            st.button("🔄 전체 재생성", key="top_reset_s3", on_click=_reset_images)
+        with _nc3:
+            st.button("이미지 확정 → 영상 제작 ▶", key="top_next_s3", type="primary",
+                      disabled=(st.session_state.image_paths is None), on_click=_go_to_step4)
+        st.divider()
 
         st.info(
             "Gemini Imagen이 각 세그먼트에 맞는 **3D 픽사 스타일** 이미지를 생성합니다.\n"
@@ -552,6 +564,16 @@ if page == "🎬 영상 만들기":
         st.title("▶️ Step 4 / 5 — 영상 미리보기")
         script = st.session_state.edited_script or st.session_state.script_data
         topic = st.session_state.selected_topic
+
+        # 상단 네비게이션
+        _nc1, _nc2, _nc3 = st.columns(3)
+        with _nc1:
+            st.button("← 이미지로", key="top_back_s4", on_click=_back_to_step3)
+        with _nc2:
+            st.button("🔄 영상 다시 합성", key="top_redo_s4", on_click=_redo_video)
+        with _nc3:
+            st.button("📤 YouTube 업로드 ▶", key="top_next_s4", type="primary", on_click=_go_to_step5)
+        st.divider()
 
         # ── Luma AI: hook 이미지 → 5초 영상 ──────────────────────────────────
         if st.session_state.luma_video_path is None:

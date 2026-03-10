@@ -2,6 +2,12 @@
 config.json
 client_secret.json
 token.pickle
+github_secrets_TEMP.txt
+
+# 테스트 파일 (로컬 전용)
+test_*.py
+test_*.png
+test_*.mp3
 
 # 생성 결과물
 output/

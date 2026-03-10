@@ -15,8 +15,8 @@ import numpy as np
 from moviepy.editor import AudioFileClip, VideoClip, concatenate_videoclips
 from PIL import Image, ImageDraw, ImageFont
 
-WIDTH = 720
-HEIGHT = 1280
+WIDTH = 1080
+HEIGHT = 1920
 FPS = 24
 EFFECTS = ["zoom_in", "zoom_out", "pan_right", "pan_left"]
 
@@ -67,7 +67,7 @@ def _subtitle_frame(base_frame, text, t, dur, segment_type, point_index, font_pa
     img = Image.fromarray(base_frame).convert("RGBA")
 
     # 자막 영역 가벼운 그라디언트 (매우 옅게 — 이미지 잘 보임)
-    grad_h = 200
+    grad_h = 300
     grad = Image.new("RGBA", (WIDTH, grad_h), (0, 0, 0, 0))
     gd = ImageDraw.Draw(grad)
     for dy in range(grad_h):
@@ -76,18 +76,18 @@ def _subtitle_frame(base_frame, text, t, dur, segment_type, point_index, font_pa
 
     # 배지 설정
     if segment_type == "hook":
-        badge_text, badge_color, font_size = "🎬 시작", (210, 40, 40, 200), 52
+        badge_text, badge_color, font_size = "🎬 시작", (210, 40, 40, 200), 78
     elif segment_type == "point":
-        badge_text, badge_color, font_size = f"💡 포인트 {point_index}", (30, 110, 215, 200), 50
+        badge_text, badge_color, font_size = f"💡 포인트 {point_index}", (30, 110, 215, 200), 75
     else:
-        badge_text, badge_color, font_size = "📢 마무리", (40, 170, 65, 200), 48
+        badge_text, badge_color, font_size = "📢 마무리", (40, 170, 65, 200), 72
 
     font_main = _get_font(font_path, font_size)
-    font_badge = _get_font(font_path, 30)
+    font_badge = _get_font(font_path, 45)
 
     # 배지 (상단 고정, 반투명)
-    badge_w, badge_h_px = 220, 46
-    bx, by = (WIDTH - badge_w) // 2, 72
+    badge_w, badge_h_px = 330, 69
+    bx, by = (WIDTH - badge_w) // 2, 108
     bl = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     bd = ImageDraw.Draw(bl)
     try:
@@ -110,7 +110,7 @@ def _subtitle_frame(base_frame, text, t, dur, segment_type, point_index, font_pa
     except AttributeError:
         lw, _ = draw.textsize(current_line, font=font_main)
     lx = (WIDTH - lw) / 2
-    pad = 18
+    pad = 27
 
     # 반투명 배경 박스 (alpha 85 — 이미지가 비쳐 보임)
     box_l = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
