@@ -72,6 +72,21 @@ def load_config() -> dict:
             cfg["telegram"]["bot_token"] = secrets["telegram_bot_token"]
         if "telegram_chat_id" in secrets:
             cfg["telegram"]["chat_id"] = secrets["telegram_chat_id"]
+        # YouTube OAuth 인증 파일 복원 (base64 → 임시 파일)
+        if "youtube_token_b64" in secrets and secrets["youtube_token_b64"]:
+            import base64, tempfile
+            token_data = base64.b64decode(secrets["youtube_token_b64"])
+            token_path = os.path.join(tempfile.gettempdir(), "token.pickle")
+            with open(token_path, "wb") as _f:
+                _f.write(token_data)
+            cfg["youtube"]["token_path"] = token_path
+        if "youtube_client_secret_b64" in secrets and secrets["youtube_client_secret_b64"]:
+            import base64, tempfile
+            cs_data = base64.b64decode(secrets["youtube_client_secret_b64"])
+            cs_path = os.path.join(tempfile.gettempdir(), "client_secret.json")
+            with open(cs_path, "w", encoding="utf-8") as _f:
+                _f.write(cs_data.decode("utf-8"))
+            cfg["youtube"]["client_secrets_file"] = cs_path
     except Exception:
         pass  # 로컬 환경에선 secrets 없어도 정상
 
