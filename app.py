@@ -728,7 +728,6 @@ if page == "🎬 영상 만들기":
 
         if st.session_state.youtube_id is None:
             client_secret = cfg["youtube"]["client_secrets_file"]
-            st.info(f"📁 client_secret 경로: `{client_secret}` / 존재: {os.path.exists(client_secret)}")
             if not os.path.exists(client_secret):
                 st.error(
                     f"❌ `{client_secret}` 파일이 없습니다.\n\n"
