@@ -55,7 +55,10 @@ def load_config() -> dict:
             "output": {"audio_dir": "output/audio", "video_dir": "output/video",
                        "luma_dir": "output/luma"},
             "youtube": {"client_secrets_file": "client_secret.json",
-                        "category_id": "28", "privacy_status": "private"},
+                        "category_id": "28", "privacy_status": "private",
+                        "title_template": "{topic_title} #Shorts",
+                        "description_template": "{description}\n\n제품개발 정보성 유튜브 쇼츠!\n#제품개발 #스타트업 #Shorts",
+                        "default_tags": ["Shorts", "제품개발", "스타트업", "정보성"]},
             "logging": {"log_file": "logs/generation_log.json"},
         }
 
@@ -638,7 +641,7 @@ if page == "🎬 영상 만들기":
             from modules.tts_generator import generate_tts
             audio_path = os.path.join(cfg["output"]["audio_dir"], f"tts_{date_str}.mp3")
             full_script = script.get("full_script", " ".join(
-                s["text"] for s in script.get("segments", [])
+                s.get("text", "") for s in script.get("segments", [])
             ))
             try:
                 tts_result = run_with_progress(
