@@ -711,19 +711,24 @@ if page == "🎬 영상 만들기":
     # ────────────────────────────────────────────────────────────────────────
     elif st.session_state.step == 5:
         st.title("🚀 Step 5 / 5 — YouTube 업로드")
-        script = st.session_state.edited_script or st.session_state.script_data
-        topic = st.session_state.selected_topic
+        try:
+            script = st.session_state.edited_script or st.session_state.script_data
+            topic = st.session_state.selected_topic
 
-        yt_title = cfg["youtube"]["title_template"].format(topic_title=topic["title"])
-        yt_desc = cfg["youtube"]["description_template"].format(
-            description=script.get("description", "")
-        )
-        yt_tags = list(dict.fromkeys(
-            cfg["youtube"]["default_tags"] + script.get("tags", [])
-        ))[:15]
+            yt_title = cfg["youtube"]["title_template"].format(topic_title=topic["title"])
+            yt_desc = cfg["youtube"]["description_template"].format(
+                description=script.get("description", "") if isinstance(script, dict) else ""
+            )
+            yt_tags = list(dict.fromkeys(
+                cfg["youtube"]["default_tags"] + (script.get("tags", []) if isinstance(script, dict) else [])
+            ))[:15]
+        except Exception as e:
+            st.error(f"Step 5 초기화 오류: {e}")
+            st.stop()
 
         if st.session_state.youtube_id is None:
             client_secret = cfg["youtube"]["client_secrets_file"]
+            st.info(f"📁 client_secret 경로: `{client_secret}` / 존재: {os.path.exists(client_secret)}")
             if not os.path.exists(client_secret):
                 st.error(
                     f"❌ `{client_secret}` 파일이 없습니다.\n\n"
