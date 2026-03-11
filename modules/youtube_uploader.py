@@ -13,14 +13,21 @@ SCOPES = [
 TOKEN_CACHE = "token.pickle"
 
 
-def get_authenticated_service(client_secrets_file: str = "client_secret.json"):
-    """OAuth2 인증 후 YouTube API 서비스 반환. token.pickle 캐시 사용."""
+def get_authenticated_service(client_secrets_file: str = "client_secret.json",
+                              token_path: str = None):
+    """OAuth2 인증 후 YouTube API 서비스 반환. token.pickle 캐시 사용.
+
+    Args:
+        client_secrets_file: OAuth2 클라이언트 시크릿 JSON 경로
+        token_path: 토큰 캐시 파일 경로 (None이면 TOKEN_CACHE 상수 사용)
+    """
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
     credentials = None
+    token_cache = token_path or TOKEN_CACHE  # 외부 경로 주입 가능 (Streamlit Cloud 지원)
 
     # 캐시된 토큰 로드
-    if os.path.exists(TOKEN_CACHE):
-        with open(TOKEN_CACHE, "rb") as f:
+    if os.path.exists(token_cache):
+        with open(token_cache, "rb") as f:
             credentials = pickle.load(f)
 
     # 토큰이 없거나 만료된 경우 재인증
@@ -35,7 +42,7 @@ def get_authenticated_service(client_secrets_file: str = "client_secret.json"):
             credentials = flow.run_local_server(port=0)
 
         # 토큰 저장
-        with open(TOKEN_CACHE, "wb") as f:
+        with open(token_cache, "wb") as f:
             pickle.dump(credentials, f)
 
     return googleapiclient.discovery.build("youtube", "v3", credentials=credentials)

@@ -733,7 +733,8 @@ if page == "🎬 영상 만들기":
 
             with st.spinner("YouTube에 업로드 중... (1~3분 소요)"):
                 from modules.youtube_uploader import get_authenticated_service, upload_video
-                yt_service = get_authenticated_service(client_secret)
+                token_path = cfg["youtube"].get("token_path", "token.pickle")
+                yt_service = get_authenticated_service(client_secret, token_path=token_path)
                 response = upload_video(
                     youtube=yt_service,
                     file_path=st.session_state.video_path,
