@@ -255,6 +255,145 @@ def _trigger_regen(i):
     st.session_state.regen_index = i
 
 
+def _run_full_pipeline_auto(cfg):
+    """주제 선택 → 대본 → 이미지 → 영상 → YouTube 업로드 완전 자동 실행."""
+    with st.status("🚀 완전 자동 실행 중...", expanded=True) as status:
+        try:
+            date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # ── 1단계: 주제 자동 선택 ────────────────────────────────────────
+            st.write("🎲 주제 자동 선택 중...")
+            from modules.script_generator import generate_topics_dynamic
+            topics = generate_topics_dynamic(
+                api_key=cfg["gemini"]["api_key"],
+                model=cfg["gemini"]["model"],
+                used_titles=get_used_titles(),
+                count=1,
+            )
+            topic = topics[0]
+            st.write(f"✅ 주제: **{topic['title']}**")
+
+            # ── 2단계: 대본 생성 ──────────────────────────────────────────────
+            st.write("📝 대본 생성 중...")
+            from modules.script_generator import generate_script
+            script_data = generate_script(
+                topic=topic,
+                api_key=cfg["gemini"]["api_key"],
+                model=cfg["gemini"]["model"],
+            )
+            st.write("✅ 대본 완료")
+
+            # ── 3단계: 이미지 생성 ────────────────────────────────────────────
+            st.write("🎨 이미지 생성 중...")
+            from modules.image_generator import generate_segment_images
+            style = cfg.get("image", {}).get("style_prefix",
+                "3D Pixar animation style, vibrant colors, friendly characters")
+            imagen_model = cfg["gemini"].get("imagen_model", "imagen-4.0-fast-generate-001")
+            scenes = generate_segment_images(
+                script_data=script_data,
+                api_key=cfg["gemini"]["api_key"],
+                imagen_model=imagen_model,
+                style_prefix=style,
+                output_dir=cfg.get("image", {}).get("output_dir", "output/images"),
+            )
+            ok_count = sum(1 for s in scenes if not s.get("error"))
+            st.write(f"✅ 이미지 {ok_count}/{len(scenes)}장 완료")
+
+            # ── 4단계: Luma 인트로 (선택적) ──────────────────────────────────
+            luma_key = cfg.get("luma", {}).get("api_key", "")
+            imgbb_key = cfg.get("luma", {}).get("imgbb_api_key", "")
+            luma_video_path = None
+            first_scene = scenes[0] if scenes else None
+            hook_img = (first_scene.get("path") if isinstance(first_scene, dict) else first_scene) if first_scene else None
+            if luma_key and imgbb_key and hook_img and os.path.exists(hook_img):
+                st.write("🎬 Luma AI 인트로 영상 생성 중...")
+                from modules.luma_client import image_to_video
+                try:
+                    luma_video_path = image_to_video(
+                        image_path=hook_img,
+                        api_key=luma_key,
+                        prompt=cfg.get("luma", {}).get("prompt_suffix", "Smooth cinematic camera movement"),
+                        output_dir=cfg["output"].get("luma_dir", "output/luma"),
+                        imgbb_api_key=imgbb_key,
+                    )
+                    st.write("✅ Luma 인트로 완료")
+                except Exception as e:
+                    st.write(f"⚠️ Luma 생성 실패 (정적 이미지로 대체): {e}")
+
+            # ── 5단계: TTS + 영상 합성 ────────────────────────────────────────
+            st.write("🎙 TTS 음성 생성 중...")
+            from modules.tts_generator import generate_tts
+            audio_path = os.path.join(cfg["output"]["audio_dir"], f"tts_{date_str}.mp3")
+            full_script = script_data.get("full_script", " ".join(
+                s.get("text", "") for s in script_data.get("segments", [])
+            ))
+            tts_result = generate_tts(
+                script_text=full_script,
+                output_path=audio_path,
+                api_key=cfg["openai"]["api_key"],
+                model=cfg["openai"]["tts_model"],
+                voice=cfg["openai"]["tts_voice"],
+                speed=cfg["openai"]["tts_speed"],
+            )
+            st.write(f"✅ 음성 완료 ({tts_result['duration_seconds']:.1f}초)")
+
+            st.write("🎬 영상 합성 중...")
+            from modules.video_builder import build_video_from_scenes
+            video_path = os.path.join(cfg["output"]["video_dir"], f"shorts_{date_str}.mp4")
+            build_video_from_scenes(
+                scenes=scenes,
+                audio_path=tts_result["audio_path"],
+                audio_duration=tts_result["duration_seconds"],
+                output_path=video_path,
+                font_path=cfg["video"]["font_path"],
+                luma_video_path=luma_video_path or None,
+            )
+            st.write("✅ 영상 합성 완료")
+
+            # ── 6단계: YouTube 업로드 ─────────────────────────────────────────
+            st.write("🚀 YouTube 업로드 중...")
+            from modules.youtube_uploader import get_authenticated_service, upload_video
+            client_secret = cfg["youtube"]["client_secrets_file"]
+            token_path = cfg["youtube"].get("token_path", "token.pickle")
+            yt_service = get_authenticated_service(client_secret, token_path=token_path)
+            yt_title = cfg["youtube"]["title_template"].format(topic_title=topic["title"])
+            yt_desc = cfg["youtube"]["description_template"].format(
+                description=script_data.get("description", "")
+            )
+            yt_tags = list(dict.fromkeys(
+                cfg["youtube"]["default_tags"] + script_data.get("tags", [])
+            ))[:15]
+            response = upload_video(
+                youtube=yt_service,
+                file_path=video_path,
+                title=yt_title,
+                description=yt_desc,
+                tags=yt_tags,
+                category_id=cfg["youtube"]["category_id"],
+                privacy_status="private",
+            )
+            youtube_id = response.get("id", "unknown")
+
+            # 이력 저장
+            save_log({
+                "timestamp": datetime.datetime.now().isoformat(),
+                "topic_title": topic["title"],
+                "category": topic.get("category", ""),
+                "output_path": video_path,
+                "youtube_video_id": youtube_id,
+                "privacy": "private",
+            })
+
+            status.update(label="✅ 자동 실행 완료!", state="complete")
+            yt_url = f"https://youtube.com/shorts/{youtube_id}"
+            st.success(f"🎉 업로드 완료! [{yt_url}]({yt_url})")
+            st.info("현재 **비공개(private)** 상태입니다. YouTube Studio에서 확인 후 공개로 변경하세요.")
+
+        except Exception as e:
+            status.update(label="❌ 오류 발생", state="error")
+            st.error(f"자동 실행 실패: {e}")
+
+
 # ── 사이드바 ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("🎬 Shorts 자동 생성기")
@@ -295,11 +434,19 @@ if page == "🎬 영상 만들기":
     # ────────────────────────────────────────────────────────────────────────
     if st.session_state.step == 1:
         st.title("📌 Step 1 / 5 — 주제 선택")
-        st.markdown("Gemini가 시청자들이 궁금해하는 제품개발 주제 **5가지**를 추천합니다.")
 
+        # ── 완전 자동 실행 ─────────────────────────────────────────────────────
+        auto_col, _ = st.columns([1, 3])
+        with auto_col:
+            if st.button("🚀 완전 자동 실행", type="primary", use_container_width=True):
+                _run_full_pipeline_auto(cfg)
+        st.divider()
+
+        # ── 수동 선택 ──────────────────────────────────────────────────────────
+        st.markdown("또는 주제를 직접 선택하세요:")
         col_gen, _ = st.columns([1, 3])
         with col_gen:
-            gen_btn = st.button("🎲 주제 5개 생성", type="primary", use_container_width=True)
+            gen_btn = st.button("🎲 주제 5개 생성", use_container_width=True)
 
         if gen_btn:
             from modules.script_generator import generate_topics_dynamic
