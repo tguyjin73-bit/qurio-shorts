@@ -71,6 +71,8 @@ def load_config() -> dict:
             cfg["openai"]["api_key"] = secrets["openai_api_key"]
         if "luma_api_key" in secrets:
             cfg["luma"]["api_key"] = secrets["luma_api_key"]
+        if "imgbb_api_key" in secrets:
+            cfg["luma"]["imgbb_api_key"] = secrets["imgbb_api_key"]
         if "telegram_bot_token" in secrets:
             cfg["telegram"]["bot_token"] = secrets["telegram_bot_token"]
         if "telegram_chat_id" in secrets:
