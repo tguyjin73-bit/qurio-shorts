@@ -389,9 +389,27 @@ def _run_full_pipeline_auto(cfg):
             st.success(f"🎉 업로드 완료! [{yt_url}]({yt_url})")
             st.info("현재 **비공개(private)** 상태입니다. YouTube Studio에서 확인 후 공개로 변경하세요.")
 
+            # 텔레그램 완료 알림
+            bot_token = cfg.get("telegram", {}).get("bot_token", "")
+            chat_id = cfg.get("telegram", {}).get("chat_id", "")
+            if bot_token and chat_id:
+                from modules.notifier import notify_upload_complete
+                notify_upload_complete(bot_token, chat_id, topic["title"], youtube_id)
+
         except Exception as e:
             status.update(label="❌ 오류 발생", state="error")
             st.error(f"자동 실행 실패: {e}")
+
+            # 텔레그램 오류 알림
+            try:
+                import traceback as _tb
+                bot_token = cfg.get("telegram", {}).get("bot_token", "")
+                chat_id = cfg.get("telegram", {}).get("chat_id", "")
+                if bot_token and chat_id:
+                    from modules.notifier import notify_error
+                    notify_error(bot_token, chat_id, str(e), _tb.format_exc())
+            except Exception:
+                pass
 
 
 # ── 사이드바 ────────────────────────────────────────────────────────────────────
