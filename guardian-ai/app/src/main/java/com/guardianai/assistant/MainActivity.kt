@@ -1,8 +1,10 @@
 package com.guardianai.assistant
 
 import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.SharedPreferences
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -15,9 +17,10 @@ import com.guardianai.assistant.databinding.ActivityMainBinding
 /**
  * MainActivity - 가디언 AI 비서의 메인 화면
  *
- * 이 화면은 두 가지 핵심 기능을 제공합니다:
+ * 이 화면은 세 가지 핵심 기능을 제공합니다:
  * 1. 권한 승인 상태를 시각적으로 표시 (허용/거부 상태를 색상으로 구분)
- * 2. 긴급 연락처(119, 가족, 지인)를 다중 선택하여 SharedPreferences에 저장
+ * 2. 활동 모니터링 서비스 시작/중지 및 현재 활동 상태 표시
+ * 3. 긴급 연락처(119, 가족, 지인)를 다중 선택하여 SharedPreferences에 저장
  */
 class MainActivity : AppCompatActivity() {
 
@@ -27,6 +30,9 @@ class MainActivity : AppCompatActivity() {
     /** 권한 관리자 인스턴스 */
     private lateinit var permissionManager: PermissionManager
 
+    /** 모니터링 서비스 실행 상태 추적 */
+    private var isMonitoring = false
+
     /** SharedPreferences 키 상수 정의 */
     companion object {
         private const val PREFS_NAME = "guardian_ai_prefs"          // SharedPreferences 파일명
@@ -35,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_CONTACT_FRIEND = "contact_friend"     // 지인 선택 여부
         private const val KEY_FAMILY_PHONE = "family_phone"         // 가족 전화번호
         private const val KEY_FRIEND_PHONE = "friend_phone"         // 지인 전화번호
+        private const val KEY_IS_MONITORING = "is_monitoring"       // 모니터링 상태
     }
 
     /**
@@ -64,6 +71,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * 활동 감지 서비스로부터 현재 활동 상태를 수신하는 BroadcastReceiver
+     * 서비스에서 활동이 감지될 때마다 UI를 업데이트합니다.
+     */
+    private val activityUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent ?: return
+            if (intent.action == ActivityRecognitionService.ACTION_ACTIVITY_UPDATE) {
+                // 활동 유형과 신뢰도를 추출하여 UI 업데이트
+                val activityType = intent.getStringExtra(
+                    ActivityRecognitionService.EXTRA_ACTIVITY_TYPE
+                ) ?: "UNKNOWN"
+                val confidence = intent.getIntExtra(
+                    ActivityRecognitionService.EXTRA_CONFIDENCE, 0
+                )
+                updateCurrentActivityUI(activityType, confidence)
+            }
+        }
+    }
+
+    /**
      * 액티비티 생성 시 호출되는 라이프사이클 콜백
      * ViewBinding 초기화, 권한 관리자 초기화, UI 설정을 수행합니다.
      */
@@ -77,24 +104,52 @@ class MainActivity : AppCompatActivity() {
         // 권한 관리자 초기화
         permissionManager = PermissionManager(this)
 
+        // 이전 모니터링 상태 복원
+        isMonitoring = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(KEY_IS_MONITORING, false)
+
         // UI 초기 설정
         setupToolbar()
         setupPermissionButton()
+        setupMonitoringButton()
         setupEmergencyContacts()
         loadSavedContacts()
 
         // 현재 권한 상태를 UI에 반영
         updatePermissionStatusUI()
+        updateMonitoringUI()
     }
 
     /**
      * 액티비티가 다시 화면에 표시될 때 호출되는 라이프사이클 콜백
      * 설정 화면에서 돌아왔을 때 권한 상태가 변경되었을 수 있으므로 UI를 갱신합니다.
+     * 또한 활동 업데이트 브로드캐스트 리시버를 등록합니다.
      */
     override fun onResume() {
         super.onResume()
         // 설정 화면에서 돌아온 경우 권한 상태가 변경되었을 수 있음
         updatePermissionStatusUI()
+
+        // 활동 업데이트 브로드캐스트 수신 등록
+        val filter = IntentFilter(ActivityRecognitionService.ACTION_ACTIVITY_UPDATE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(activityUpdateReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(activityUpdateReceiver, filter)
+        }
+    }
+
+    /**
+     * 액티비티가 화면에서 사라질 때 호출되는 라이프사이클 콜백
+     * 브로드캐스트 리시버를 해제하여 메모리 누수를 방지합니다.
+     */
+    override fun onPause() {
+        super.onPause()
+        try {
+            unregisterReceiver(activityUpdateReceiver)
+        } catch (e: IllegalArgumentException) {
+            // 리시버가 이미 해제된 경우 무시
+        }
     }
 
     /**
@@ -119,6 +174,107 @@ class MainActivity : AppCompatActivity() {
             // 거부된 권한들을 일괄 요청
             permissionManager.requestAllPermissions(permissionLauncher)
         }
+    }
+
+    /**
+     * 모니터링 시작/중지 버튼의 클릭 리스너를 설정하는 함수
+     * 권한이 모두 허용된 경우에만 모니터링을 시작할 수 있습니다.
+     */
+    private fun setupMonitoringButton() {
+        binding.btnToggleMonitoring.setOnClickListener {
+            if (isMonitoring) {
+                // 모니터링 중지
+                stopMonitoring()
+            } else {
+                // 모니터링 시작 전 권한 확인
+                if (!permissionManager.areAllPermissionsGranted()) {
+                    Toast.makeText(this, "모니터링을 시작하려면 모든 권한을 허용해 주세요.", Toast.LENGTH_LONG).show()
+                    permissionManager.requestAllPermissions(permissionLauncher)
+                    return@setOnClickListener
+                }
+                startMonitoring()
+            }
+        }
+    }
+
+    /**
+     * 활동 모니터링 서비스를 시작하는 함수
+     * 포그라운드 서비스를 실행하고 UI 상태를 업데이트합니다.
+     */
+    private fun startMonitoring() {
+        ActivityRecognitionService.start(this)
+        isMonitoring = true
+        saveMonitoringState()
+        updateMonitoringUI()
+        Toast.makeText(this, "활동 모니터링이 시작되었습니다.", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 활동 모니터링 서비스를 중지하는 함수
+     */
+    private fun stopMonitoring() {
+        ActivityRecognitionService.stop(this)
+        isMonitoring = false
+        saveMonitoringState()
+        updateMonitoringUI()
+        Toast.makeText(this, "활동 모니터링이 중지되었습니다.", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 모니터링 상태를 SharedPreferences에 저장하는 함수
+     * 앱 재시작 시 이전 모니터링 상태를 복원하기 위해 사용합니다.
+     */
+    private fun saveMonitoringState() {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_IS_MONITORING, isMonitoring)
+            .apply()
+    }
+
+    /**
+     * 모니터링 UI 상태를 업데이트하는 함수
+     * 모니터링 상태에 따라 버튼 텍스트와 활동 표시를 변경합니다.
+     */
+    private fun updateMonitoringUI() {
+        if (isMonitoring) {
+            binding.btnToggleMonitoring.text = getString(R.string.stop_monitoring)
+            binding.btnToggleMonitoring.setIconResource(android.R.drawable.ic_media_pause)
+            binding.tvCurrentActivity.text = "감지 중..."
+            binding.tvCurrentActivity.setTextColor(
+                ContextCompat.getColor(this, R.color.status_granted)
+            )
+        } else {
+            binding.btnToggleMonitoring.text = getString(R.string.start_monitoring)
+            binding.btnToggleMonitoring.setIconResource(android.R.drawable.ic_media_play)
+            binding.tvCurrentActivity.text = getString(R.string.monitoring_stopped)
+            binding.tvCurrentActivity.setTextColor(
+                ContextCompat.getColor(this, R.color.text_secondary)
+            )
+        }
+    }
+
+    /**
+     * 현재 감지된 활동 상태를 UI에 표시하는 함수
+     * ActivityRecognitionService에서 브로드캐스트로 전달받은 활동 정보를 화면에 반영합니다.
+     *
+     * @param activityType 활동 유형 코드 (예: "WALKING")
+     * @param confidence 감지 신뢰도 (0~100)
+     */
+    private fun updateCurrentActivityUI(activityType: String, confidence: Int) {
+        val displayName = when (activityType) {
+            "STILL" -> "정지"
+            "WALKING" -> "걷기"
+            "RUNNING" -> "달리기"
+            "IN_VEHICLE" -> "차량 탑승"
+            "ON_BICYCLE" -> "자전거"
+            "ON_FOOT" -> "도보"
+            "TILTING" -> "기울임"
+            else -> "알 수 없음"
+        }
+        binding.tvCurrentActivity.text = "$displayName ($confidence%)"
+        binding.tvCurrentActivity.setTextColor(
+            ContextCompat.getColor(this, R.color.primary)
+        )
     }
 
     /**

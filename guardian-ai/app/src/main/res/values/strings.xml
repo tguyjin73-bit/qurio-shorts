@@ -29,6 +29,13 @@
     <string name="save_contacts">연락처 저장</string>
     <string name="contacts_saved">긴급 연락처가 저장되었습니다.</string>
 
+    <!-- 활동 모니터링 관련 -->
+    <string name="header_monitoring">활동 모니터링</string>
+    <string name="current_activity">현재 활동</string>
+    <string name="monitoring_stopped">모니터링 중지됨</string>
+    <string name="start_monitoring">모니터링 시작</string>
+    <string name="stop_monitoring">모니터링 중지</string>
+
     <!-- 헤더 -->
     <string name="header_permission_status">권한 승인 상태</string>
     <string name="header_emergency_contacts">긴급 연락처</string>
