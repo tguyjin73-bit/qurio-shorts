@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>가디언 AI 비서</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, 'Noto Sans KR', sans-serif;
+            background: #F5F5F5;
+            color: #212121;
+            min-height: 100vh;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 상단 앱바 */
+        .toolbar {
+            background: #1565C0;
+            color: white;
+            padding: 16px 20px;
+            font-size: 20px;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .content { padding: 16px; }
+
+        /* 섹션 제목 */
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #212121;
+        }
+
+        /* 카드 */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        /* 권한 행 */
+        .permission-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #F0F0F0;
+        }
+        .permission-row:last-child { border-bottom: none; }
+
+        .permission-name { font-size: 15px; color: #212121; }
+
+        .status-granted {
+            color: #2E7D32;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .status-denied {
+            color: #C62828;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        /* 버튼 */
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 16px;
+        }
+        .btn:active { transform: scale(0.97); }
+
+        .btn-primary {
+            background: #1565C0;
+            color: white;
+        }
+        .btn-primary:disabled {
+            background: #90CAF9;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #C62828;
+            color: white;
+        }
+
+        .btn-success {
+            background: #2E7D32;
+            color: white;
+        }
+
+        /* 모니터링 상태 */
+        .monitoring-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .monitoring-label { font-size: 15px; }
+        .monitoring-value {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        /* 활동 아이콘 */
+        .activity-icon {
+            font-size: 48px;
+            text-align: center;
+            margin: 16px 0;
+        }
+
+        /* 체크박스 그룹 */
+        .checkbox-group { margin-bottom: 12px; }
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            font-size: 15px;
+            padding: 8px 0;
+            cursor: pointer;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            accent-color: #1565C0;
+        }
+
+        /* 전화번호 입력 */
+        .phone-input {
+            width: 100%;
+            padding: 12px;
+            border: 1.5px solid #BDBDBD;
+            border-radius: 8px;
+            font-size: 15px;
+            margin: 4px 0 12px 32px;
+            width: calc(100% - 32px);
+            transition: border-color 0.2s;
+        }
+        .phone-input:focus {
+            outline: none;
+            border-color: #1565C0;
+        }
+        .phone-input.hidden { display: none; }
+
+        /* 토스트 알림 */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 200;
+            white-space: nowrap;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* 긴급 알림 배너 */
+        .emergency-banner {
+            background: #C62828;
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            display: none;
+            animation: pulse 1s infinite;
+        }
+        .emergency-banner.show { display: block; }
+        .emergency-banner h3 { margin-bottom: 4px; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        /* 활동 로그 */
+        .log-entry {
+            padding: 8px 0;
+            border-bottom: 1px solid #F0F0F0;
+            font-size: 13px;
+            color: #757575;
+        }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry .time { color: #9E9E9E; }
+        .log-entry.anomaly { color: #C62828; font-weight: bold; }
+
+        /* 탭 내비게이션 */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            color: #757575;
+            cursor: pointer;
+            border: none;
+            background: white;
+            transition: color 0.2s;
+        }
+        .tab.active { color: #1565C0; font-weight: bold; }
+        .tab-icon { font-size: 22px; display: block; margin-bottom: 2px; }
+
+        .tab-content { display: none; padding-bottom: 70px; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+
+    <!-- 상단 앱바 -->
+    <div class="toolbar">🛡 가디언 AI 비서</div>
+
+    <!-- 긴급 알림 배너 -->
+    <div class="content">
+        <div id="emergencyBanner" class="emergency-banner">
+            <h3>⚠ 이상 감지!</h3>
+            <p id="emergencyMessage"></p>
+            <button class="btn btn-success" onclick="dismissEmergency()" style="margin-top:8px;margin-bottom:0">괜찮습니다</button>
+        </div>
+    </div>
+
+    <!-- 탭 1: 홈/모니터링 -->
+    <div id="tabHome" class="tab-content active">
+        <div class="content">
+
+            <!-- 모니터링 섹션 -->
+            <div class="section-title">활동 모니터링</div>
+            <div class="card">
+                <div class="activity-icon" id="activityIcon">🧍</div>
+                <div class="monitoring-status">
+                    <span class="monitoring-label">현재 활동</span>
+                    <span class="monitoring-value" id="currentActivity" style="color:#757575">모니터링 중지됨</span>
+                </div>
+                <div class="monitoring-status">
+                    <span class="monitoring-label">신뢰도</span>
+                    <span class="monitoring-value" id="currentConfidence" style="color:#757575">-</span>
+                </div>
+                <div class="monitoring-status">
+                    <span class="monitoring-label">모니터링 시간</span>
+                    <span class="monitoring-value" id="monitoringDuration" style="color:#757575">-</span>
+                </div>
+                <button id="btnToggle" class="btn btn-primary" onclick="toggleMonitoring()">
+                    ▶ 모니터링 시작
+                </button>
+            </div>
+
+            <!-- 최근 활동 로그 -->
+            <div class="section-title">최근 활동 로그</div>
+            <div class="card">
+                <div id="activityLog">
+                    <div class="log-entry" style="color:#9E9E9E; text-align:center;">모니터링을 시작하면 활동 로그가 여기에 표시됩니다.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 탭 2: 권한 상태 -->
+    <div id="tabPermissions" class="tab-content">
+        <div class="content">
+            <div class="section-title">권한 승인 상태</div>
+            <div class="card">
+                <div class="permission-row">
+                    <span class="permission-name">📍 위치 권한</span>
+                    <span id="permLocation" class="status-denied">거부됨 ✗</span>
+                </div>
+                <div class="permission-row">
+                    <span class="permission-name">🏃 활동 감지 권한</span>
+                    <span id="permActivity" class="status-denied">거부됨 ✗</span>
+                </div>
+                <div class="permission-row">
+                    <span class="permission-name">💬 SMS 전송 권한</span>
+                    <span id="permSms" class="status-denied">거부됨 ✗</span>
+                </div>
+                <div class="permission-row">
+                    <span class="permission-name">📞 전화 권한</span>
+                    <span id="permPhone" class="status-denied">거부됨 ✗</span>
+                </div>
+                <div class="permission-row">
+                    <span class="permission-name">🔔 알림 권한</span>
+                    <span id="permNotification" class="status-denied">거부됨 ✗</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="btnRequestPerms" onclick="requestPermissions()">
+                권한 요청하기
+            </button>
+
+            <div class="section-title" style="margin-top:8px">센서 상태</div>
+            <div class="card">
+                <div class="permission-row">
+                    <span class="permission-name">📡 가속도계</span>
+                    <span id="sensorAccel" class="status-denied">미확인</span>
+                </div>
+                <div class="permission-row">
+                    <span class="permission-name">🔄 자이로스코프</span>
+                    <span id="sensorGyro" class="status-denied">미확인</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 탭 3: 긴급 연락처 -->
+    <div id="tabContacts" class="tab-content">
+        <div class="content">
+            <div class="section-title">긴급 연락처</div>
+            <div class="card">
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="cb119" onchange="saveContacts()">
+                        119 (소방/응급)
+                    </label>
+                </div>
+
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="cbFamily" onchange="toggleFamilyInput()">
+                        가족
+                    </label>
+                    <input type="tel" id="etFamily" class="phone-input hidden"
+                           placeholder="가족 전화번호 입력" onchange="saveContacts()">
+                </div>
+
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="cbFriend" onchange="toggleFriendInput()">
+                        지인
+                    </label>
+                    <input type="tel" id="etFriend" class="phone-input hidden"
+                           placeholder="지인 전화번호 입력" onchange="saveContacts()">
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="saveContacts()">연락처 저장</button>
+        </div>
+    </div>
+
+    <!-- 하단 탭바 -->
+    <div class="tab-bar">
+        <button class="tab active" onclick="switchTab('tabHome', this)">
+            <span class="tab-icon">🏠</span>홈
+        </button>
+        <button class="tab" onclick="switchTab('tabPermissions', this)">
+            <span class="tab-icon">🔐</span>권한
+        </button>
+        <button class="tab" onclick="switchTab('tabContacts', this)">
+            <span class="tab-icon">📱</span>연락처
+        </button>
+    </div>
+
+    <!-- 토스트 -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // ============================
+        // 상태 관리 변수들
+        // ============================
+        let isMonitoring = false;           // 모니터링 실행 상태
+        let monitoringStartTime = null;     // 모니터링 시작 시각
+        let monitoringTimer = null;         // 모니터링 타이머 ID
+        let activityTimer = null;           // 활동 감지 시뮬레이션 타이머
+        let durationTimer = null;           // 경과 시간 갱신 타이머
+        let activityLogs = [];              // 활동 로그 배열
+        let previousActivity = null;        // 이전 활동 (이상 감지용)
+        let previousActivityTime = 0;       // 이전 활동 시각
+        let stillStartTime = null;          // STILL 상태 시작 시각
+
+        // 활동 유형 정의 (아이콘, 이름, 가중치)
+        const ACTIVITIES = {
+            STILL:      { icon: '🧍', name: '정지',     weight: 40 },
+            WALKING:    { icon: '🚶', name: '걷기',     weight: 30 },
+            RUNNING:    { icon: '🏃', name: '달리기',   weight: 10 },
+            IN_VEHICLE: { icon: '🚗', name: '차량 탑승', weight: 10 },
+            ON_BICYCLE: { icon: '🚴', name: '자전거',   weight: 5  },
+            TILTING:    { icon: '📱', name: '기울임',   weight: 5  }
+        };
+
+        // ============================
+        // 탭 전환
+        // ============================
+        /** 탭을 전환하는 함수 - 선택된 탭의 콘텐츠를 표시하고 나머지를 숨김 */
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        // ============================
+        // 토스트 메시지
+        // ============================
+        /** 화면 하단에 일시적 메시지를 표시하는 함수 */
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        // ============================
+        // 모니터링 제어
+        // ============================
+        /** 모니터링 시작/중지를 토글하는 함수 */
+        function toggleMonitoring() {
+            if (isMonitoring) {
+                stopMonitoring();
+            } else {
+                startMonitoring();
+            }
+        }
+
+        /** 활동 모니터링을 시작하는 함수 - 센서 접근 및 시뮬레이션 시작 */
+        function startMonitoring() {
+            isMonitoring = true;
+            monitoringStartTime = Date.now();
+            stillStartTime = null;
+            previousActivity = null;
+
+            const btn = document.getElementById('btnToggle');
+            btn.textContent = '⏸ 모니터링 중지';
+            btn.className = 'btn btn-danger';
+
+            document.getElementById('currentActivity').style.color = '#2E7D32';
+            document.getElementById('currentActivity').textContent = '감지 중...';
+
+            // 실제 디바이스 모션 센서 사용 시도
+            startDeviceMotion();
+
+            // 10초마다 활동 감지 시뮬레이션 (센서 보완)
+            activityTimer = setInterval(detectActivity, 10000);
+
+            // 1초마다 경과 시간 갱신
+            durationTimer = setInterval(updateDuration, 1000);
+
+            // 첫 감지 즉시 실행
+            setTimeout(detectActivity, 1000);
+
+            showToast('활동 모니터링이 시작되었습니다');
+            localStorage.setItem('isMonitoring', 'true');
+        }
+
+        /** 활동 모니터링을 중지하는 함수 */
+        function stopMonitoring() {
+            isMonitoring = false;
+            clearInterval(activityTimer);
+            clearInterval(durationTimer);
+            stopDeviceMotion();
+
+            const btn = document.getElementById('btnToggle');
+            btn.textContent = '▶ 모니터링 시작';
+            btn.className = 'btn btn-primary';
+
+            document.getElementById('currentActivity').style.color = '#757575';
+            document.getElementById('currentActivity').textContent = '모니터링 중지됨';
+            document.getElementById('currentConfidence').textContent = '-';
+            document.getElementById('monitoringDuration').textContent = '-';
+            document.getElementById('activityIcon').textContent = '🧍';
+
+            showToast('활동 모니터링이 중지되었습니다');
+            localStorage.setItem('isMonitoring', 'false');
+        }
+
+        // ============================
+        // 디바이스 모션 센서 (실제 센서)
+        // ============================
+        let lastAcceleration = { x: 0, y: 0, z: 0 };
+        let motionMagnitudes = [];  // 최근 가속도 크기 기록
+
+        /** 디바이스 모션 센서를 시작하는 함수 */
+        function startDeviceMotion() {
+            if (window.DeviceMotionEvent) {
+                // iOS 13+ 에서는 권한 요청 필요
+                if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                    DeviceMotionEvent.requestPermission().then(state => {
+                        if (state === 'granted') {
+                            window.addEventListener('devicemotion', handleMotion);
+                            updateSensorStatus('sensorAccel', true);
+                        }
+                    }).catch(() => {});
+                } else {
+                    window.addEventListener('devicemotion', handleMotion);
+                    updateSensorStatus('sensorAccel', true);
+                }
+            }
+        }
+
+        /** 디바이스 모션 센서를 중지하는 함수 */
+        function stopDeviceMotion() {
+            window.removeEventListener('devicemotion', handleMotion);
+        }
+
+        /** 모션 이벤트를 처리하는 함수 - 가속도 크기를 기록 */
+        function handleMotion(event) {
+            const acc = event.accelerationIncludingGravity;
+            if (!acc) return;
+
+            // 중력 제거한 순수 가속도 크기 계산
+            const magnitude = Math.sqrt(
+                Math.pow(acc.x - lastAcceleration.x, 2) +
+                Math.pow(acc.y - lastAcceleration.y, 2) +
+                Math.pow(acc.z - lastAcceleration.z, 2)
+            );
+
+            lastAcceleration = { x: acc.x, y: acc.y, z: acc.z };
+
+            // 최근 100개 샘플만 유지
+            motionMagnitudes.push(magnitude);
+            if (motionMagnitudes.length > 100) motionMagnitudes.shift();
+        }
+
+        // ============================
+        // 활동 감지 (센서 기반 + 시뮬레이션)
+        // ============================
+        /** 현재 활동을 감지하는 함수 - 센서 데이터가 있으면 실제 분석, 없으면 시뮬레이션 */
+        function detectActivity() {
+            if (!isMonitoring) return;
+
+            let activityType, confidence;
+
+            if (motionMagnitudes.length > 10) {
+                // 실제 센서 데이터 기반 활동 분류
+                const avg = motionMagnitudes.reduce((a, b) => a + b, 0) / motionMagnitudes.length;
+                const result = classifyFromSensor(avg);
+                activityType = result.type;
+                confidence = result.confidence;
+                motionMagnitudes = [];  // 분석 후 초기화
+            } else {
+                // 센서 데이터 없으면 가중치 기반 시뮬레이션
+                const result = simulateActivity();
+                activityType = result.type;
+                confidence = result.confidence;
+            }
+
+            const activity = ACTIVITIES[activityType];
+
+            // UI 업데이트
+            document.getElementById('activityIcon').textContent = activity.icon;
+            document.getElementById('currentActivity').textContent = activity.name;
+            document.getElementById('currentActivity').style.color = '#1565C0';
+            document.getElementById('currentConfidence').textContent = confidence + '%';
+            document.getElementById('currentConfidence').style.color = '#1565C0';
+
+            // 이상 패턴 분석
+            const anomaly = analyzeAnomaly(activityType, confidence);
+
+            // 로그 기록
+            addLog(activityType, confidence, anomaly);
+
+            // 이전 활동 저장
+            previousActivity = activityType;
+            previousActivityTime = Date.now();
+        }
+
+        /** 센서 데이터로 활동을 분류하는 함수 */
+        function classifyFromSensor(avgMagnitude) {
+            if (avgMagnitude > 15) return { type: 'RUNNING', confidence: 75 + Math.floor(Math.random() * 20) };
+            if (avgMagnitude > 5)  return { type: 'WALKING', confidence: 70 + Math.floor(Math.random() * 25) };
+            if (avgMagnitude > 2)  return { type: 'TILTING', confidence: 60 + Math.floor(Math.random() * 20) };
+            return { type: 'STILL', confidence: 80 + Math.floor(Math.random() * 15) };
+        }
+
+        /** 활동을 시뮬레이션하는 함수 - 가중치 기반 랜덤 선택 */
+        function simulateActivity() {
+            const entries = Object.entries(ACTIVITIES);
+            const totalWeight = entries.reduce((sum, [, v]) => sum + v.weight, 0);
+            let random = Math.random() * totalWeight;
+
+            for (const [type, data] of entries) {
+                random -= data.weight;
+                if (random <= 0) {
+                    return {
+                        type,
+                        confidence: 50 + Math.floor(Math.random() * 45)
+                    };
+                }
+            }
+            return { type: 'STILL', confidence: 80 };
+        }
+
+        // ============================
+        // 이상 패턴 감지
+        // ============================
+        /** 이상 패턴을 분석하는 함수 - 낙상 의심 및 장시간 미활동 감지 */
+        function analyzeAnomaly(activityType, confidence) {
+            if (confidence < 50) return null;
+
+            const now = Date.now();
+
+            // 1. 급격한 활동 변화 감지 (낙상 의심)
+            if (previousActivity && (now - previousActivityTime) < 5000) {
+                const wasActive = ['WALKING', 'RUNNING', 'ON_BICYCLE'].includes(previousActivity);
+                if (wasActive && activityType === 'STILL') {
+                    const msg = `낙상 의심: ${ACTIVITIES[previousActivity].name}에서 갑자기 정지`;
+                    showEmergency(msg);
+                    return msg;
+                }
+            }
+
+            // 2. 장시간 미활동 감지 (데모: 2분으로 축소)
+            if (activityType === 'STILL') {
+                if (!stillStartTime) stillStartTime = now;
+                const stillDuration = now - stillStartTime;
+                if (stillDuration > 2 * 60 * 1000) {  // 2분 (데모용, 실제론 30분)
+                    const minutes = Math.floor(stillDuration / 60000);
+                    const msg = `장시간 미활동: ${minutes}분 동안 움직임 없음`;
+                    showEmergency(msg);
+                    stillStartTime = now;  // 리셋
+                    return msg;
+                }
+            } else {
+                stillStartTime = null;
+            }
+
+            return null;
+        }
+
+        /** 긴급 알림 배너를 표시하는 함수 */
+        function showEmergency(msg) {
+            document.getElementById('emergencyMessage').textContent = msg;
+            document.getElementById('emergencyBanner').classList.add('show');
+            // 진동 (지원되는 경우)
+            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+        }
+
+        /** 긴급 알림을 닫는 함수 */
+        function dismissEmergency() {
+            document.getElementById('emergencyBanner').classList.remove('show');
+            showToast('상태 확인 완료');
+        }
+
+        // ============================
+        // 활동 로그
+        // ============================
+        /** 활동 로그를 추가하는 함수 */
+        function addLog(activityType, confidence, anomaly) {
+            const now = new Date();
+            const time = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const activity = ACTIVITIES[activityType];
+
+            activityLogs.unshift({
+                time,
+                icon: activity.icon,
+                name: activity.name,
+                confidence,
+                anomaly
+            });
+
+            // 최대 50개만 유지
+            if (activityLogs.length > 50) activityLogs.pop();
+
+            renderLogs();
+        }
+
+        /** 로그 목록을 화면에 렌더링하는 함수 */
+        function renderLogs() {
+            const container = document.getElementById('activityLog');
+            if (activityLogs.length === 0) {
+                container.innerHTML = '<div class="log-entry" style="color:#9E9E9E;text-align:center;">모니터링을 시작하면 활동 로그가 여기에 표시됩니다.</div>';
+                return;
+            }
+
+            container.innerHTML = activityLogs.slice(0, 20).map(log =>
+                `<div class="log-entry${log.anomaly ? ' anomaly' : ''}">
+                    <span class="time">${log.time}</span>
+                    ${log.icon} ${log.name} (${log.confidence}%)
+                    ${log.anomaly ? '<br>⚠ ' + log.anomaly : ''}
+                </div>`
+            ).join('');
+        }
+
+        // ============================
+        // 경과 시간 갱신
+        // ============================
+        /** 모니터링 경과 시간을 갱신하는 함수 */
+        function updateDuration() {
+            if (!monitoringStartTime) return;
+            const elapsed = Date.now() - monitoringStartTime;
+            const hours = Math.floor(elapsed / 3600000);
+            const mins = Math.floor((elapsed % 3600000) / 60000);
+            const secs = Math.floor((elapsed % 60000) / 1000);
+
+            const parts = [];
+            if (hours > 0) parts.push(hours + '시간');
+            parts.push(mins + '분');
+            parts.push(secs + '초');
+
+            document.getElementById('monitoringDuration').textContent = parts.join(' ');
+            document.getElementById('monitoringDuration').style.color = '#2E7D32';
+        }
+
+        // ============================
+        // 권한 요청 (웹 API)
+        // ============================
+        /** 브라우저 권한을 요청하는 함수 - 위치, 알림, 모션 센서 */
+        function requestPermissions() {
+            let granted = 0;
+
+            // 위치 권한
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    () => { updatePermStatus('permLocation', true); },
+                    () => { updatePermStatus('permLocation', false); }
+                );
+            }
+
+            // 알림 권한
+            if ('Notification' in window) {
+                Notification.requestPermission().then(perm => {
+                    updatePermStatus('permNotification', perm === 'granted');
+                });
+            }
+
+            // 모션 센서 (iOS)
+            if (typeof DeviceMotionEvent !== 'undefined' &&
+                typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission().then(state => {
+                    updatePermStatus('permActivity', state === 'granted');
+                    updateSensorStatus('sensorAccel', state === 'granted');
+                });
+            } else if (window.DeviceMotionEvent) {
+                updatePermStatus('permActivity', true);
+                updateSensorStatus('sensorAccel', true);
+            }
+
+            // SMS와 전화는 웹에서 직접 제어 불가 → 안내
+            updatePermStatus('permSms', true);
+            updatePermStatus('permPhone', true);
+
+            showToast('권한을 요청했습니다');
+        }
+
+        /** 권한 상태 UI를 업데이트하는 함수 */
+        function updatePermStatus(id, granted) {
+            const el = document.getElementById(id);
+            if (granted) {
+                el.textContent = '허용됨 ✓';
+                el.className = 'status-granted';
+            } else {
+                el.textContent = '거부됨 ✗';
+                el.className = 'status-denied';
+            }
+        }
+
+        /** 센서 상태 UI를 업데이트하는 함수 */
+        function updateSensorStatus(id, available) {
+            const el = document.getElementById(id);
+            if (available) {
+                el.textContent = '사용 가능 ✓';
+                el.className = 'status-granted';
+            } else {
+                el.textContent = '사용 불가 ✗';
+                el.className = 'status-denied';
+            }
+        }
+
+        // ============================
+        // 긴급 연락처 저장/로드
+        // ============================
+        /** 가족 전화번호 입력 필드를 토글하는 함수 */
+        function toggleFamilyInput() {
+            const input = document.getElementById('etFamily');
+            input.classList.toggle('hidden', !document.getElementById('cbFamily').checked);
+            saveContacts();
+        }
+
+        /** 지인 전화번호 입력 필드를 토글하는 함수 */
+        function toggleFriendInput() {
+            const input = document.getElementById('etFriend');
+            input.classList.toggle('hidden', !document.getElementById('cbFriend').checked);
+            saveContacts();
+        }
+
+        /** 긴급 연락처를 localStorage에 저장하는 함수 */
+        function saveContacts() {
+            const data = {
+                contact119: document.getElementById('cb119').checked,
+                contactFamily: document.getElementById('cbFamily').checked,
+                contactFriend: document.getElementById('cbFriend').checked,
+                familyPhone: document.getElementById('etFamily').value,
+                friendPhone: document.getElementById('etFriend').value
+            };
+            localStorage.setItem('emergencyContacts', JSON.stringify(data));
+            showToast('긴급 연락처가 저장되었습니다');
+        }
+
+        /** 저장된 긴급 연락처를 불러와 UI에 반영하는 함수 */
+        function loadContacts() {
+            const saved = localStorage.getItem('emergencyContacts');
+            if (!saved) return;
+
+            const data = JSON.parse(saved);
+            document.getElementById('cb119').checked = data.contact119 || false;
+            document.getElementById('cbFamily').checked = data.contactFamily || false;
+            document.getElementById('cbFriend').checked = data.contactFriend || false;
+            document.getElementById('etFamily').value = data.familyPhone || '';
+            document.getElementById('etFriend').value = data.friendPhone || '';
+
+            if (data.contactFamily) document.getElementById('etFamily').classList.remove('hidden');
+            if (data.contactFriend) document.getElementById('etFriend').classList.remove('hidden');
+        }
+
+        // ============================
+        // 초기화
+        // ============================
+        /** 앱 초기화 함수 - 저장된 데이터 복원 및 센서 확인 */
+        function init() {
+            loadContacts();
+
+            // 센서 지원 여부 확인
+            if (window.DeviceMotionEvent) updateSensorStatus('sensorAccel', true);
+            if (window.DeviceOrientationEvent) updateSensorStatus('sensorGyro', true);
+
+            // 자동 권한 상태 확인
+            if (navigator.geolocation) {
+                navigator.permissions?.query({ name: 'geolocation' }).then(result => {
+                    updatePermStatus('permLocation', result.state === 'granted');
+                }).catch(() => {});
+            }
+            if ('Notification' in window) {
+                updatePermStatus('permNotification', Notification.permission === 'granted');
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        init();
+    </script>
+</body>
+</html>
