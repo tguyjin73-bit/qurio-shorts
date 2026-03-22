@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">가디언 AI</string>
+
+    <!-- 권한 관련 문자열 -->
+    <string name="permission_title">권한 필요</string>
+    <string name="permission_message">가디언 AI 비서가 사용자를 보호하기 위해 다음 권한이 필요합니다:\n\n• 위치: 긴급 상황 시 위치 정보 전송\n• 활동 감지: 낙상 등 이상 행동 감지\n• SMS/전화: 긴급 연락처에 자동 연락\n• 알림: 위험 상황 즉시 알림\n• 상시 감시: 백그라운드 모니터링\n\n모든 권한은 사용자 안전을 위해서만 사용됩니다.</string>
+    <string name="permission_grant">권한 허용</string>
+    <string name="permission_deny">나중에</string>
+    <string name="permission_settings_message">앱 설정에서 권한을 직접 허용해 주세요.</string>
+    <string name="go_to_settings">설정으로 이동</string>
+
+    <!-- 권한 상태 표시 -->
+    <string name="status_granted">허용됨 ✓</string>
+    <string name="status_denied">거부됨 ✗</string>
+    <string name="permission_location">위치 권한</string>
+    <string name="permission_activity">활동 감지 권한</string>
+    <string name="permission_sms">SMS 전송 권한</string>
+    <string name="permission_phone">전화 권한</string>
+    <string name="permission_notification">알림 권한</string>
+
+    <!-- 긴급 연락처 관련 -->
+    <string name="emergency_contacts_title">긴급 연락처 설정</string>
+    <string name="contact_119">119 (소방/응급)</string>
+    <string name="contact_family">가족</string>
+    <string name="contact_friend">지인</string>
+    <string name="contact_family_hint">가족 전화번호 입력</string>
+    <string name="contact_friend_hint">지인 전화번호 입력</string>
+    <string name="save_contacts">연락처 저장</string>
+    <string name="contacts_saved">긴급 연락처가 저장되었습니다.</string>
+
+    <!-- 헤더 -->
+    <string name="header_permission_status">권한 승인 상태</string>
+    <string name="header_emergency_contacts">긴급 연락처</string>
+</resources>
