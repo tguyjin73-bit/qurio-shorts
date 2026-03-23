@@ -29,6 +29,13 @@ venv/
 # 잘못 생성된 파일
 =*
 
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+
 # OS
 .DS_Store
 Thumbs.db
