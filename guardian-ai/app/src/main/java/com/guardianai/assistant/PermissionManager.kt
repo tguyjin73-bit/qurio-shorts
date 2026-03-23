@@ -36,7 +36,8 @@ class PermissionManager(private val activity: Activity) {
                 Manifest.permission.ACCESS_COARSE_LOCATION,    // 대략적 위치
                 Manifest.permission.ACTIVITY_RECOGNITION,      // 활동 감지
                 Manifest.permission.SEND_SMS,                  // SMS 전송
-                Manifest.permission.CALL_PHONE                 // 전화 걸기
+                Manifest.permission.CALL_PHONE,                // 전화 걸기
+                Manifest.permission.CAMERA                     // 카메라
             )
 
             // Android 13(API 33, Tiramisu) 이상에서만 POST_NOTIFICATIONS 권한 추가

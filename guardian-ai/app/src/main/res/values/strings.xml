@@ -39,4 +39,17 @@
     <!-- 헤더 -->
     <string name="header_permission_status">권한 승인 상태</string>
     <string name="header_emergency_contacts">긴급 연락처</string>
+
+    <!-- 센서/카메라 모니터링 -->
+    <string name="permission_camera">카메라 권한</string>
+    <string name="header_sensor_monitoring">센서 모니터링</string>
+    <string name="sensor_accel">가속도</string>
+    <string name="sensor_status_off">비활성</string>
+    <string name="start_sensor_monitoring">센서 모니터링 시작</string>
+    <string name="stop_sensor_monitoring">센서 모니터링 중지</string>
+    <string name="header_camera_monitoring">카메라 모니터링</string>
+    <string name="camera_status_label">카메라 상태</string>
+    <string name="camera_status_off">비활성</string>
+    <string name="start_camera_monitoring">카메라 모니터링 시작</string>
+    <string name="stop_camera_monitoring">카메라 모니터링 중지</string>
 </resources>

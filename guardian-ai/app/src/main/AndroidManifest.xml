@@ -16,9 +16,20 @@
     <!-- 알림 권한: Android 13(Tiramisu) 이상에서 알림 표시 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 카메라 권한: 영상 기반 낙상 감지 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- 센서 권한: 가속도계, 자이로스코프 -->
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
+
     <!-- 포그라운드 서비스 권한: 백그라운드에서 상시 모니터링 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
 
     <application
         android:allowBackup="true"
@@ -43,6 +54,18 @@
             android:name=".ActivityRecognitionService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- 센서 모니터링 서비스 (가속도계, 자이로스코프) -->
+        <service
+            android:name=".SensorMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- 카메라 모니터링 서비스 -->
+        <service
+            android:name=".CameraMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="camera" />
 
     </application>
 
