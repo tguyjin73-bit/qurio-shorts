@@ -12,16 +12,24 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.guardianai.assistant.ai.AiMode
+import com.guardianai.assistant.ai.PatternLearningEngine
+import com.guardianai.assistant.ai.ProactiveSuggestionManager
 import com.guardianai.assistant.databinding.ActivityMainBinding
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var permissionManager: PermissionManager
+    private lateinit var patternEngine: PatternLearningEngine
+    private lateinit var suggestionManager: ProactiveSuggestionManager
 
     private var isMonitoring = false
     private var isSensorMonitoring = false
     private var isCameraMonitoring = false
+    private var isPhishingMonitoring = false
 
     companion object {
         private const val PREFS_NAME = "guardian_ai_prefs"
@@ -33,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_IS_MONITORING = "is_monitoring"
         private const val KEY_IS_SENSOR_MONITORING = "is_sensor_monitoring"
         private const val KEY_IS_CAMERA_MONITORING = "is_camera_monitoring"
+        private const val KEY_IS_PHISHING_MONITORING = "is_phishing_monitoring"
     }
 
     private val permissionLauncher = registerForActivityResult(
@@ -50,23 +59,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 활동 감지 브로드캐스트 리시버 */
+    // === 브로드캐스트 리시버들 ===
+
     private val activityUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent ?: return
             if (intent.action == ActivityRecognitionService.ACTION_ACTIVITY_UPDATE) {
-                val activityType = intent.getStringExtra(
-                    ActivityRecognitionService.EXTRA_ACTIVITY_TYPE
-                ) ?: "UNKNOWN"
-                val confidence = intent.getIntExtra(
-                    ActivityRecognitionService.EXTRA_CONFIDENCE, 0
-                )
+                val activityType = intent.getStringExtra(ActivityRecognitionService.EXTRA_ACTIVITY_TYPE) ?: "UNKNOWN"
+                val confidence = intent.getIntExtra(ActivityRecognitionService.EXTRA_CONFIDENCE, 0)
                 updateCurrentActivityUI(activityType, confidence)
             }
         }
     }
 
-    /** 센서 데이터 브로드캐스트 리시버 */
     private val sensorUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent ?: return
@@ -78,7 +83,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 카메라 상태 브로드캐스트 리시버 */
     private val cameraUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent ?: return
@@ -89,20 +93,40 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val callStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent ?: return
+            if (intent.action == CallMonitorService.ACTION_CALL_STATUS) {
+                val state = intent.getStringExtra(CallMonitorService.EXTRA_CALL_STATE) ?: ""
+                val riskLevel = intent.getIntExtra(CallMonitorService.EXTRA_RISK_LEVEL, 0)
+                updatePhishingUI(state, riskLevel)
+            }
+        }
+    }
+
+    // === 라이프사이클 ===
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         permissionManager = PermissionManager(this)
+        patternEngine = PatternLearningEngine(this)
+        suggestionManager = ProactiveSuggestionManager(
+            this, patternEngine, NotificationHelper(this)
+        )
 
         // 이전 상태 복원
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
         isMonitoring = prefs.getBoolean(KEY_IS_MONITORING, false)
         isSensorMonitoring = prefs.getBoolean(KEY_IS_SENSOR_MONITORING, false)
         isCameraMonitoring = prefs.getBoolean(KEY_IS_CAMERA_MONITORING, false)
+        isPhishingMonitoring = prefs.getBoolean(KEY_IS_PHISHING_MONITORING, false)
 
         setupToolbar()
+        setupAiModeToggle()
+        setupPhishingButton()
         setupPermissionButton()
         setupMonitoringButton()
         setupSensorButton()
@@ -114,25 +138,30 @@ class MainActivity : AppCompatActivity() {
         updateMonitoringUI()
         updateSensorMonitoringUI()
         updateCameraMonitoringUI()
+        updatePhishingMonitoringUI()
+
+        // 학습된 패턴 표시
+        loadLearnedPatterns()
     }
 
     override fun onResume() {
         super.onResume()
         updatePermissionStatusUI()
 
-        // 활동 업데이트 리시버 등록
-        val activityFilter = IntentFilter(ActivityRecognitionService.ACTION_ACTIVITY_UPDATE)
-        val sensorFilter = IntentFilter(SensorMonitorService.ACTION_SENSOR_UPDATE)
-        val cameraFilter = IntentFilter(CameraMonitorService.ACTION_CAMERA_UPDATE)
+        val filters = listOf(
+            ActivityRecognitionService.ACTION_ACTIVITY_UPDATE to activityUpdateReceiver,
+            SensorMonitorService.ACTION_SENSOR_UPDATE to sensorUpdateReceiver,
+            CameraMonitorService.ACTION_CAMERA_UPDATE to cameraUpdateReceiver,
+            CallMonitorService.ACTION_CALL_STATUS to callStatusReceiver
+        )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(activityUpdateReceiver, activityFilter, Context.RECEIVER_EXPORTED)
-            registerReceiver(sensorUpdateReceiver, sensorFilter, Context.RECEIVER_EXPORTED)
-            registerReceiver(cameraUpdateReceiver, cameraFilter, Context.RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(activityUpdateReceiver, activityFilter)
-            registerReceiver(sensorUpdateReceiver, sensorFilter)
-            registerReceiver(cameraUpdateReceiver, cameraFilter)
+        for ((action, receiver) in filters) {
+            val filter = IntentFilter(action)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(receiver, filter)
+            }
         }
     }
 
@@ -142,13 +171,64 @@ class MainActivity : AppCompatActivity() {
             unregisterReceiver(activityUpdateReceiver)
             unregisterReceiver(sensorUpdateReceiver)
             unregisterReceiver(cameraUpdateReceiver)
-        } catch (e: IllegalArgumentException) {
-            // 리시버가 이미 해제된 경우 무시
-        }
+            unregisterReceiver(callStatusReceiver)
+        } catch (e: IllegalArgumentException) { }
     }
+
+    // === Setup 함수들 ===
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
+    }
+
+    /** AI 모드 토글 설정 */
+    private fun setupAiModeToggle() {
+        // 현재 모드 반영
+        val currentMode = suggestionManager.currentMode
+        when (currentMode) {
+            AiMode.ACTIVE -> binding.toggleAiMode.check(binding.btnModeActive.id)
+            AiMode.NORMAL -> binding.toggleAiMode.check(binding.btnModeNormal.id)
+            AiMode.QUIET -> binding.toggleAiMode.check(binding.btnModeQuiet.id)
+        }
+        binding.tvAiModeDescription.text = currentMode.description
+
+        binding.toggleAiMode.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            val mode = when (checkedId) {
+                binding.btnModeActive.id -> AiMode.ACTIVE
+                binding.btnModeNormal.id -> AiMode.NORMAL
+                binding.btnModeQuiet.id -> AiMode.QUIET
+                else -> AiMode.NORMAL
+            }
+            suggestionManager.currentMode = mode
+            binding.tvAiModeDescription.text = mode.description
+            Toast.makeText(this, "AI 모드: ${mode.displayName}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 보이스피싱 감시 버튼 */
+    private fun setupPhishingButton() {
+        binding.btnTogglePhishing.setOnClickListener {
+            if (isPhishingMonitoring) {
+                CallMonitorService.stop(this)
+                isPhishingMonitoring = false
+                saveState()
+                updatePhishingMonitoringUI()
+                Toast.makeText(this, "보이스피싱 감시가 중지되었습니다.", Toast.LENGTH_SHORT).show()
+            } else {
+                if (!permissionManager.isPermissionGranted(Manifest.permission.READ_PHONE_STATE) ||
+                    !permissionManager.isPermissionGranted(Manifest.permission.RECORD_AUDIO)) {
+                    Toast.makeText(this, "통화 감지 및 음성 인식 권한이 필요합니다.", Toast.LENGTH_LONG).show()
+                    permissionManager.requestAllPermissions(permissionLauncher)
+                    return@setOnClickListener
+                }
+                CallMonitorService.start(this)
+                isPhishingMonitoring = true
+                saveState()
+                updatePhishingMonitoringUI()
+                Toast.makeText(this, "보이스피싱 감시가 시작되었습니다.", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun setupPermissionButton() {
@@ -176,7 +256,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 센서 모니터링 버튼 설정 */
     private fun setupSensorButton() {
         binding.btnToggleSensor.setOnClickListener {
             if (isSensorMonitoring) {
@@ -200,7 +279,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 카메라 모니터링 버튼 설정 */
     private fun setupCameraButton() {
         binding.btnToggleCamera.setOnClickListener {
             if (isCameraMonitoring) {
@@ -240,11 +318,14 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "활동 모니터링이 중지되었습니다.", Toast.LENGTH_SHORT).show()
     }
 
+    // === 상태 저장/UI 업데이트 ===
+
     private fun saveState() {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().apply {
             putBoolean(KEY_IS_MONITORING, isMonitoring)
             putBoolean(KEY_IS_SENSOR_MONITORING, isSensorMonitoring)
             putBoolean(KEY_IS_CAMERA_MONITORING, isCameraMonitoring)
+            putBoolean(KEY_IS_PHISHING_MONITORING, isPhishingMonitoring)
             apply()
         }
     }
@@ -254,16 +335,12 @@ class MainActivity : AppCompatActivity() {
             binding.btnToggleMonitoring.text = getString(R.string.stop_monitoring)
             binding.btnToggleMonitoring.setIconResource(android.R.drawable.ic_media_pause)
             binding.tvCurrentActivity.text = "감지 중..."
-            binding.tvCurrentActivity.setTextColor(
-                ContextCompat.getColor(this, R.color.status_granted)
-            )
+            binding.tvCurrentActivity.setTextColor(ContextCompat.getColor(this, R.color.status_granted))
         } else {
             binding.btnToggleMonitoring.text = getString(R.string.start_monitoring)
             binding.btnToggleMonitoring.setIconResource(android.R.drawable.ic_media_play)
             binding.tvCurrentActivity.text = getString(R.string.monitoring_stopped)
-            binding.tvCurrentActivity.setTextColor(
-                ContextCompat.getColor(this, R.color.text_secondary)
-            )
+            binding.tvCurrentActivity.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
         }
     }
 
@@ -272,16 +349,12 @@ class MainActivity : AppCompatActivity() {
             binding.btnToggleSensor.text = getString(R.string.stop_sensor_monitoring)
             binding.btnToggleSensor.setIconResource(android.R.drawable.ic_media_pause)
             binding.tvAccelStatus.text = "감지 중..."
-            binding.tvAccelStatus.setTextColor(
-                ContextCompat.getColor(this, R.color.status_granted)
-            )
+            binding.tvAccelStatus.setTextColor(ContextCompat.getColor(this, R.color.status_granted))
         } else {
             binding.btnToggleSensor.text = getString(R.string.start_sensor_monitoring)
             binding.btnToggleSensor.setIconResource(android.R.drawable.ic_menu_compass)
             binding.tvAccelStatus.text = getString(R.string.sensor_status_off)
-            binding.tvAccelStatus.setTextColor(
-                ContextCompat.getColor(this, R.color.text_secondary)
-            )
+            binding.tvAccelStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
         }
     }
 
@@ -290,47 +363,46 @@ class MainActivity : AppCompatActivity() {
             binding.btnToggleCamera.text = getString(R.string.stop_camera_monitoring)
             binding.btnToggleCamera.setIconResource(android.R.drawable.ic_media_pause)
             binding.tvCameraStatus.text = "활성"
-            binding.tvCameraStatus.setTextColor(
-                ContextCompat.getColor(this, R.color.status_granted)
-            )
+            binding.tvCameraStatus.setTextColor(ContextCompat.getColor(this, R.color.status_granted))
         } else {
             binding.btnToggleCamera.text = getString(R.string.start_camera_monitoring)
             binding.btnToggleCamera.setIconResource(android.R.drawable.ic_menu_camera)
             binding.tvCameraStatus.text = getString(R.string.camera_status_off)
-            binding.tvCameraStatus.setTextColor(
-                ContextCompat.getColor(this, R.color.text_secondary)
-            )
+            binding.tvCameraStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        }
+    }
+
+    private fun updatePhishingMonitoringUI() {
+        if (isPhishingMonitoring) {
+            binding.btnTogglePhishing.text = getString(R.string.stop_phishing_monitor)
+            binding.btnTogglePhishing.setIconResource(android.R.drawable.ic_media_pause)
+            binding.tvPhishingStatus.text = "감시 중"
+            binding.tvPhishingStatus.setTextColor(ContextCompat.getColor(this, R.color.status_granted))
+        } else {
+            binding.btnTogglePhishing.text = getString(R.string.start_phishing_monitor)
+            binding.btnTogglePhishing.setIconResource(android.R.drawable.ic_menu_call)
+            binding.tvPhishingStatus.text = getString(R.string.phishing_status_off)
+            binding.tvPhishingStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
         }
     }
 
     private fun updateCurrentActivityUI(activityType: String, confidence: Int) {
         val displayName = when (activityType) {
-            "STILL" -> "정지"
-            "WALKING" -> "걷기"
-            "RUNNING" -> "달리기"
-            "IN_VEHICLE" -> "차량 탑승"
-            "ON_BICYCLE" -> "자전거"
-            "ON_FOOT" -> "도보"
-            "TILTING" -> "기울임"
-            else -> "알 수 없음"
+            "STILL" -> "정지"; "WALKING" -> "걷기"; "RUNNING" -> "달리기"
+            "IN_VEHICLE" -> "차량 탑승"; "ON_BICYCLE" -> "자전거"
+            "ON_FOOT" -> "도보"; "TILTING" -> "기울임"; else -> "알 수 없음"
         }
         binding.tvCurrentActivity.text = "$displayName ($confidence%)"
-        binding.tvCurrentActivity.setTextColor(
-            ContextCompat.getColor(this, R.color.primary)
-        )
+        binding.tvCurrentActivity.setTextColor(ContextCompat.getColor(this, R.color.primary))
     }
 
     private fun updateSensorUI(magnitude: Float, fallDetected: Boolean) {
         if (fallDetected) {
             binding.tvAccelStatus.text = "⚠ 낙상 감지!"
-            binding.tvAccelStatus.setTextColor(
-                ContextCompat.getColor(this, R.color.status_denied)
-            )
+            binding.tvAccelStatus.setTextColor(ContextCompat.getColor(this, R.color.status_denied))
         } else {
             binding.tvAccelStatus.text = "%.1f m/s²".format(magnitude)
-            binding.tvAccelStatus.setTextColor(
-                ContextCompat.getColor(this, R.color.status_granted)
-            )
+            binding.tvAccelStatus.setTextColor(ContextCompat.getColor(this, R.color.status_granted))
         }
     }
 
@@ -344,52 +416,51 @@ class MainActivity : AppCompatActivity() {
         binding.tvCameraStatus.setTextColor(ContextCompat.getColor(this, color))
     }
 
-    private fun setupEmergencyContacts() {
-        binding.cbFamily.setOnCheckedChangeListener { _, isChecked ->
-            binding.tilFamily.visibility = if (isChecked) View.VISIBLE else View.GONE
+    private fun updatePhishingUI(state: String, riskLevel: Int) {
+        val statusText = when {
+            riskLevel >= 3 -> "🚨 위험 감지!"
+            riskLevel >= 2 -> "⚠ 주의"
+            state == "IN_CALL" -> "통화 감시 중"
+            state == "RINGING" -> "전화 수신 중"
+            else -> "감시 중"
         }
-        binding.cbFriend.setOnCheckedChangeListener { _, isChecked ->
-            binding.tilFriend.visibility = if (isChecked) View.VISIBLE else View.GONE
+        binding.tvPhishingStatus.text = statusText
+        val color = when {
+            riskLevel >= 3 -> R.color.status_denied
+            riskLevel >= 2 -> R.color.accent
+            else -> R.color.status_granted
         }
-        binding.btnSaveContacts.setOnClickListener {
-            saveEmergencyContacts()
+        binding.tvPhishingStatus.setTextColor(ContextCompat.getColor(this, color))
+    }
+
+    /** 학습된 패턴 표시 */
+    private fun loadLearnedPatterns() {
+        lifecycleScope.launch {
+            val patterns = patternEngine.getLearnedRoutineSummary()
+            if (patterns.isNotEmpty()) {
+                binding.tvLearnedPatterns.text = "📊 학습된 루틴:\n" + patterns.take(5).joinToString("\n") { "• $it" }
+            } else {
+                binding.tvLearnedPatterns.text = getString(R.string.ai_no_patterns)
+            }
         }
     }
 
-    private fun updatePermissionStatusUI() {
-        updateSinglePermissionStatus(
-            binding.tvLocationStatus,
-            permissionManager.isPermissionGranted(Manifest.permission.ACCESS_FINE_LOCATION)
-        )
-        updateSinglePermissionStatus(
-            binding.tvActivityStatus,
-            permissionManager.isPermissionGranted(Manifest.permission.ACTIVITY_RECOGNITION)
-        )
-        updateSinglePermissionStatus(
-            binding.tvSmsStatus,
-            permissionManager.isPermissionGranted(Manifest.permission.SEND_SMS)
-        )
-        updateSinglePermissionStatus(
-            binding.tvPhoneStatus,
-            permissionManager.isPermissionGranted(Manifest.permission.CALL_PHONE)
-        )
+    // === 권한 상태 ===
 
-        // 알림 권한 (Android 13+)
+    private fun updatePermissionStatusUI() {
+        updateSinglePermissionStatus(binding.tvLocationStatus, permissionManager.isPermissionGranted(Manifest.permission.ACCESS_FINE_LOCATION))
+        updateSinglePermissionStatus(binding.tvActivityStatus, permissionManager.isPermissionGranted(Manifest.permission.ACTIVITY_RECOGNITION))
+        updateSinglePermissionStatus(binding.tvSmsStatus, permissionManager.isPermissionGranted(Manifest.permission.SEND_SMS))
+        updateSinglePermissionStatus(binding.tvPhoneStatus, permissionManager.isPermissionGranted(Manifest.permission.CALL_PHONE))
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             binding.layoutNotificationPermission.visibility = View.VISIBLE
-            updateSinglePermissionStatus(
-                binding.tvNotificationStatus,
-                permissionManager.isPermissionGranted(Manifest.permission.POST_NOTIFICATIONS)
-            )
+            updateSinglePermissionStatus(binding.tvNotificationStatus, permissionManager.isPermissionGranted(Manifest.permission.POST_NOTIFICATIONS))
         } else {
             binding.layoutNotificationPermission.visibility = View.GONE
         }
 
-        // 카메라 권한
-        updateSinglePermissionStatus(
-            binding.tvCameraPermissionStatus,
-            permissionManager.isPermissionGranted(Manifest.permission.CAMERA)
-        )
+        updateSinglePermissionStatus(binding.tvCameraPermissionStatus, permissionManager.isPermissionGranted(Manifest.permission.CAMERA))
 
         if (permissionManager.areAllPermissionsGranted()) {
             binding.btnRequestPermissions.isEnabled = false
@@ -400,10 +471,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateSinglePermissionStatus(
-        textView: android.widget.TextView,
-        isGranted: Boolean
-    ) {
+    private fun updateSinglePermissionStatus(textView: android.widget.TextView, isGranted: Boolean) {
         if (isGranted) {
             textView.text = getString(R.string.status_granted)
             textView.setTextColor(ContextCompat.getColor(this, R.color.status_granted))
@@ -413,18 +481,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // === 긴급 연락처 ===
+
+    private fun setupEmergencyContacts() {
+        binding.cbFamily.setOnCheckedChangeListener { _, isChecked ->
+            binding.tilFamily.visibility = if (isChecked) View.VISIBLE else View.GONE
+        }
+        binding.cbFriend.setOnCheckedChangeListener { _, isChecked ->
+            binding.tilFriend.visibility = if (isChecked) View.VISIBLE else View.GONE
+        }
+        binding.btnSaveContacts.setOnClickListener { saveEmergencyContacts() }
+    }
+
     private fun saveEmergencyContacts() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().apply {
             putBoolean(KEY_CONTACT_119, binding.cb119.isChecked)
             putBoolean(KEY_CONTACT_FAMILY, binding.cbFamily.isChecked)
             putBoolean(KEY_CONTACT_FRIEND, binding.cbFriend.isChecked)
-            if (binding.cbFamily.isChecked) {
-                putString(KEY_FAMILY_PHONE, binding.etFamilyPhone.text.toString().trim())
-            }
-            if (binding.cbFriend.isChecked) {
-                putString(KEY_FRIEND_PHONE, binding.etFriendPhone.text.toString().trim())
-            }
+            if (binding.cbFamily.isChecked) putString(KEY_FAMILY_PHONE, binding.etFamilyPhone.text.toString().trim())
+            if (binding.cbFriend.isChecked) putString(KEY_FRIEND_PHONE, binding.etFriendPhone.text.toString().trim())
             apply()
         }
         Toast.makeText(this, getString(R.string.contacts_saved), Toast.LENGTH_SHORT).show()

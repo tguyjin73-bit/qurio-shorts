@@ -37,7 +37,10 @@ class PermissionManager(private val activity: Activity) {
                 Manifest.permission.ACTIVITY_RECOGNITION,      // 활동 감지
                 Manifest.permission.SEND_SMS,                  // SMS 전송
                 Manifest.permission.CALL_PHONE,                // 전화 걸기
-                Manifest.permission.CAMERA                     // 카메라
+                Manifest.permission.CAMERA,                    // 카메라
+                Manifest.permission.READ_PHONE_STATE,          // 통화 상태 감지
+                Manifest.permission.READ_CALL_LOG,             // 통화 기록
+                Manifest.permission.RECORD_AUDIO               // 음성 인식 (보이스피싱 감지)
             )
 
             // Android 13(API 33, Tiramisu) 이상에서만 POST_NOTIFICATIONS 권한 추가

@@ -40,6 +40,25 @@
     <string name="header_permission_status">권한 승인 상태</string>
     <string name="header_emergency_contacts">긴급 연락처</string>
 
+    <!-- AI 모드 -->
+    <string name="header_ai_mode">AI 비서 모드</string>
+    <string name="ai_mode_active">적극</string>
+    <string name="ai_mode_normal">보통</string>
+    <string name="ai_mode_quiet">조용</string>
+    <string name="ai_learned_patterns">학습된 패턴</string>
+    <string name="ai_no_patterns">아직 학습 중입니다</string>
+
+    <!-- 보이스피싱 -->
+    <string name="header_voice_phishing">보이스피싱 감시</string>
+    <string name="phishing_status_label">감시 상태</string>
+    <string name="phishing_status_off">비활성</string>
+    <string name="start_phishing_monitor">보이스피싱 감시 시작</string>
+    <string name="stop_phishing_monitor">보이스피싱 감시 중지</string>
+
+    <!-- 권한 추가 -->
+    <string name="permission_phone_state">통화 감지 권한</string>
+    <string name="permission_record_audio">음성 인식 권한</string>
+
     <!-- 센서/카메라 모니터링 -->
     <string name="permission_camera">카메라 권한</string>
     <string name="header_sensor_monitoring">센서 모니터링</string>
